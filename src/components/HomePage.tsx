@@ -4,6 +4,8 @@ import axios from 'axios';
 import UserMenu from './UserMenu';
 import { User, AuthResponse } from '../types';
 import { authService } from '../services/api';
+import Header from './Header';
+import Footer from './Footer';
 
 interface ApiError {
   message: string;
@@ -179,60 +181,13 @@ const HomePage: React.FC = () => {
         )}
       </div>
 
-      {/* Header */}
-      <header className="bg-white shadow-md py-4 sticky top-0 z-50">
-        <div className="container mx-auto px-0 flex justify-between items-center">
-          <div className="text-2xl font-bold ml-0">
-            <Link to="/" data-testid="home-link">
-              Med<span className="text-[#4a6fa5]">Care</span>
-            </Link>
-          </div>
-          <nav className="flex space-x-8">
-            <Link
-              to="/products"
-              data-testid="products-link"
-              className="text-[#333] hover:text-[#4a6fa5] transition-colors"
-            >
-              Products
-            </Link>
-            <Link
-              to="/communities"
-              data-testid="communities-link"
-              className="text-[#333] hover:text-[#4a6fa5] transition-colors"
-            >
-              Communities
-            </Link>
-            <Link
-              to="/about"
-              data-testid="about-link"
-              className="text-[#333] hover:text-[#4a6fa5] transition-colors"
-            >
-              About
-            </Link>
-            <Link
-              to="/contact"
-              data-testid="contact-link"
-              className="text-[#333] hover:text-[#4a6fa5] transition-colors"
-            >
-              Contact
-            </Link>
-          </nav>
-          <div data-testid="user-menu" className="relative">
-            {user && (
-              <UserMenu
-                userName={user.name}
-                onLogout={handleLogout}
-              />
-            )}
-          </div>
-        </div>
-      </header>
+      <Header user={user} onLogout={handleLogout} />
 
       {/* Hero Section */}
       <section className="py-20 text-center">
         <div className="container mx-auto px-4">
           <h1 data-testid="page-title" className="text-4xl font-bold mb-4 text-[#333]">
-            Affordable Healthcare Through Community Power
+            Join the CureCollective Community
           </h1>
           <p className="text-xl mb-8 text-[#666] max-w-2xl mx-auto">
             Your platform for affordable healthcare through community purchasing power.
@@ -491,36 +446,7 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="bg-[#2c3e50] text-white py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-wrap justify-between mb-8">
-            <div className="flex-1 min-w-[200px] mb-8">
-              <h3 className="text-lg mb-8">About MedCare</h3>
-              <p className="text-gray-300">
-                We're on a mission to make essential medications affordable through the power of bulk ordering and community purchasing.
-              </p>
-            </div>
-            <div className="flex-1 min-w-[200px] mb-8">
-              <h3 className="text-lg mb-5">Quick Links</h3>
-              <ul>
-                <li className="mb-2"><Link to="#features" data-testid="services-link" className="text-gray-300 hover:text-[#4a6fa5] transition-colors">Features</Link></li>
-                <li className="mb-2"><Link to="#how-it-works" data-testid="about-link" className="text-gray-300 hover:text-[#4a6fa5] transition-colors">How It Works</Link></li>
-                <li className="mb-2"><Link to="#about" data-testid="about-link" className="text-gray-300 hover:text-[#4a6fa5] transition-colors">About Us</Link></li>
-                <li className="mb-2"><Link to="#contact" data-testid="contact-link" className="text-gray-300 hover:text-[#4a6fa5] transition-colors">Contact</Link></li>
-              </ul>
-            </div>
-            <div className="flex-1 min-w-[200px] mb-8">
-              <h3 className="text-lg mb-5">Contact Us</h3>
-              <p className="text-gray-300 mb-2">Email: info@medcare.com</p>
-              <p className="text-gray-300">Phone: (555) 123-4567</p>
-            </div>
-          </div>
-          <div className="text-center pt-5 border-t border-[#3a506b] text-gray-300">
-            <p>&copy; 2025 MedCare. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

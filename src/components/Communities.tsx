@@ -7,6 +7,9 @@ import '../styles/Communities.css';
 import { useAuth } from '../hooks/useAuth';
 import { healthConditions } from '../data/healthConditions';
 import { locations } from '../data/locations';
+import Header from './Header';
+import Footer from './Footer';
+import { MESSAGES } from '../constants';
 
 interface Location {
   value: string;
@@ -21,7 +24,7 @@ interface Filters {
 
 const Communities: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated, user: authUser, logout } = useAuth();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [filteredCommunities, setFilteredCommunities] = useState<Community[]>([]);
   const [myCommunities, setMyCommunities] = useState<Community[]>([]);
@@ -33,46 +36,44 @@ const Communities: React.FC = () => {
   const [selectedPrivacy, setSelectedPrivacy] = useState<string>('');
 
   useEffect(() => {
-    loadCommunities();
-  }, []);
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (!token || !storedUser) {
+      navigate('/');
+      return;
+    }
+    
+    fetchCommunities();
+  }, [navigate]);
 
-  const loadCommunities = async () => {
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const fetchCommunities = async () => {
     try {
       setLoading(true);
       const response = await communityService.getAll();
-      console.log('API Response:', response); // Debug log
-      
-      if (response.success && Array.isArray(response.data)) {
-        // Add isAdmin flag to communities where user is the creator
-        const communitiesWithAdmin = response.data.map((community: any) => ({
-          ...community,
-          isAdmin: user && community.creator && community.creator._id === user._id,
-          isMember: user && (
-            (community.creator && community.creator._id === user._id) ||
-            (community.members && community.members.some((member: any) => member._id === user._id))
-          ),
-          memberCount: community.members?.length || 0
-        }));
-        
-        console.log('Processed Communities:', communitiesWithAdmin); // Debug log
-        
-        setCommunities(communitiesWithAdmin);
-        setFilteredCommunities(communitiesWithAdmin);
+      if (response.success && response.data) {
+        const communitiesData = response.data;
+        setCommunities(communitiesData);
+        setFilteredCommunities(communitiesData);
         
         // Filter communities where the user is the creator
-        if (user) {
-          const userCommunities = communitiesWithAdmin.filter(
-            (community: Community) => community.creator._id === user._id
+        if (authUser) {
+          const userCommunities = communitiesData.filter(
+            (community: Community) => community.creator._id === authUser._id
           );
           setMyCommunities(userCommunities);
         }
       } else {
-        console.error('Invalid response format:', response); // Debug log
-        setError(response.error || 'Failed to load communities');
+        setError(response.error || MESSAGES.ERRORS.GENERIC_ERROR);
       }
     } catch (err) {
-      console.error('Error loading communities:', err);
-      setError('Failed to load communities');
+      setError(MESSAGES.ERRORS.GENERIC_ERROR);
+      console.error('Error fetching communities:', err);
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ const Communities: React.FC = () => {
     try {
       const response = await communityService.join(communityId);
       if (response.success) {
-        loadCommunities();
+        fetchCommunities();
       } else {
         setError(response.error || 'Failed to join community');
       }
@@ -95,7 +96,7 @@ const Communities: React.FC = () => {
     try {
       const response = await communityService.leave(communityId);
       if (response.success) {
-        loadCommunities();
+        fetchCommunities();
       } else {
         setError(response.error || 'Failed to leave community');
       }
@@ -108,7 +109,7 @@ const Communities: React.FC = () => {
     try {
       const response = await communityService.delete(communityId);
       if (response.success) {
-        loadCommunities();
+        fetchCommunities();
       } else {
         setError(response.error || 'Failed to delete community');
       }
@@ -119,261 +120,103 @@ const Communities: React.FC = () => {
 
   const handleFilterChange = (filters: Filters) => {
     const filtered = communities.filter(community => {
-      // Location filter
-      if (filters.location && community.locations && community.locations.length > 0) {
-        const hasLocation = community.locations.some(location => 
-          location.toLowerCase() === filters.location.toLowerCase()
-        );
-        if (!hasLocation) {
-          return false;
-        }
-      }
-
-      // Condition filter
-      if (filters.condition && community.healthConditions && community.healthConditions.length > 0) {
-        const hasCondition = community.healthConditions.some(condition => 
-          condition.toLowerCase() === filters.condition.toLowerCase()
-        );
-        if (!hasCondition) {
-          return false;
-        }
-      }
-
-      // Medication filter
-      if (filters.medication && community.relatedMedications && community.relatedMedications.length > 0) {
-        const hasMedication = community.relatedMedications.some(medicine => {
-          const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
-          return medicineName.toLowerCase() === filters.medication.toLowerCase();
-        });
-        if (!hasMedication) {
-          return false;
-        }
-      }
-
-      return true;
+      const matchesSearch = community.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          community.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesHealthCondition = !filters.condition || 
+                                   (community.healthConditions && 
+                                    community.healthConditions.includes(filters.condition));
+      const matchesLocation = !filters.location || 
+                            (community.locations && 
+                             community.locations.includes(filters.location));
+      return matchesSearch && matchesHealthCondition && matchesLocation;
     });
-
     setFilteredCommunities(filtered);
   };
 
   if (loading) {
-    return (
-      <div className="communities-container">
-        <div className="loading">Loading communities...</div>
-      </div>
-    );
+    return <div className="min-h-screen bg-[#f5f7fa] flex items-center justify-center">Loading...</div>;
   }
 
-  if (error) {
-    return (
-      <div className="communities-container">
-        <div className="error-message">{error}</div>
-      </div>
-    );
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (
-    <div className="communities-container">
-      <header className="communities-header">
-        <div className="header-with-back">
-          <button className="back-button" onClick={() => navigate('/')}>
-            ← Back to Home
-          </button>
-          <h1>Communities</h1>
-        </div>
-        {isAuthenticated ? (
-          <Link to="/create-community" className="create-community-btn">
-            Create New Community
-          </Link>
-        ) : (
-          <Link to="/" className="create-community-btn">
-            Login to Create Community
-          </Link>
-        )}
-      </header>
+    <div className="min-h-screen bg-[#f5f7fa] text-[#333]">
+      <Header user={authUser} onLogout={handleLogout} />
+      
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+            <h1 className="text-3xl font-bold mb-4 md:mb-0">Communities</h1>
+            <div className="flex gap-4 w-full md:w-auto">
+              <input
+                type="text"
+                placeholder="Search communities..."
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <button
+                onClick={() => navigate('/create-community')}
+                className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors whitespace-nowrap"
+              >
+                Create Community
+              </button>
+            </div>
+          </div>
 
-      {isAuthenticated && myCommunities.length > 0 && (
-        <div className="my-communities-section">
-          <h2>My Communities</h2>
-          <div className="communities-grid">
-            {myCommunities.map(community => (
-              <div key={community._id} className="community-card">
-                <div className="community-header">
-                  <h2>{community.name}</h2>
-                  <span className={`privacy-badge ${community.privacy}`}>
-                    {community.privacy}
-                  </span>
-                </div>
-                <p className="community-description">{community.description}</p>
-                <div className="community-meta">
-                  <div className="community-tags">
-                    <div className="tag-group">
-                      <h4>Health Conditions</h4>
-                      <div className="tags">
-                        {community.healthConditions && community.healthConditions.length > 0 ? (
-                          community.healthConditions.map(condition => (
-                            <span key={condition} className="tag">{condition}</span>
-                          ))
-                        ) : (
-                          <span className="no-tags">No conditions specified</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="tag-group">
-                      <h4>Locations</h4>
-                      <div className="tags">
-                        {community.locations && community.locations.length > 0 ? (
-                          community.locations.map(location => {
-                            const locationData = locations.find((l: Location) => l.value === location);
-                            return (
-                              <span key={location} className="tag">
-                                {locationData ? locationData.label : location}
-                              </span>
-                            );
-                          })
-                        ) : (
-                          <span className="no-tags">No locations specified</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="tag-group">
-                      <h4>Related Medications</h4>
-                      <div className="tags">
-                        {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                          community.relatedMedications.map((medicine) => {
-                            const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
-                            const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
-                            return (
-                              <span key={medicineId} className="tag">
-                                {medicineName}
-                              </span>
-                            );
-                          })
-                        ) : (
-                          <span className="no-tags">
-                            <i className="fas fa-pills"></i> No medications added yet
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          {error && (
+            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCommunities.map(community => (
+              <div key={community._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-2">{community.name}</h3>
+                  <p className="text-gray-600 mb-4">{community.description}</p>
+                  <div className="mb-4">
+                    <h4 className="font-medium mb-2">Related Medications:</h4>
+                    {community.relatedMedications && community.relatedMedications.length > 0 ? (
+                      <ul className="list-disc list-inside text-gray-600">
+                        {community.relatedMedications.map((med, index) => (
+                          <li key={index}>
+                            {typeof med === 'string' ? med : med.name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-gray-500">No medications added yet</p>
+                    )}
                   </div>
-                  {community.memberCount !== undefined && (
-                    <span className="member-count">{community.memberCount} members</span>
-                  )}
-                </div>
-                <div className="community-actions">
-                  <Link to={`/communities/${community._id}`} className="view-community-btn">
-                    View Community
-                  </Link>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm text-gray-500 mb-2">
+                      {community.members.length} members
+                    </span>
+                    <button
+                      onClick={() => navigate(`/communities/${community._id}`)}
+                      className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c]"
+                    >
+                      View Details
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
 
-      <h2>All Communities</h2>
-      <CommunityFilters onFilterChange={handleFilterChange} />
-
-      <div className="communities-grid">
-        {filteredCommunities.length > 0 ? (
-          filteredCommunities.map(community => (
-            <div key={community._id} className="community-card">
-              <div className="community-header">
-                <h2>{community.name}</h2>
-                <span className={`privacy-badge ${community.privacy}`}>
-                  {community.privacy}
-                </span>
-              </div>
-              <p className="community-description">{community.description}</p>
-              <div className="community-meta">
-                <div className="community-tags">
-                  <div className="tag-group">
-                    <h4>Health Conditions</h4>
-                    <div className="tags">
-                      {community.healthConditions && community.healthConditions.length > 0 ? (
-                        community.healthConditions.map(condition => (
-                          <span key={condition} className="tag">{condition}</span>
-                        ))
-                      ) : (
-                        <span className="no-tags">No conditions specified</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="tag-group">
-                    <h4>Locations</h4>
-                    <div className="tags">
-                      {community.locations && community.locations.length > 0 ? (
-                        community.locations.map(location => {
-                          const locationData = locations.find((l: Location) => l.value === location);
-                          return (
-                            <span key={location} className="tag">
-                              {locationData ? locationData.label : location}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="no-tags">No locations specified</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="tag-group">
-                    <h4>Related Medications</h4>
-                    <div className="tags">
-                      {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                        community.relatedMedications.map((medicine) => {
-                          const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
-                          const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
-                          return (
-                            <span key={medicineId} className="tag">
-                              {medicineName}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="no-tags">
-                          <i className="fas fa-pills"></i> No medications added yet
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {community.memberCount !== undefined && (
-                  <span className="member-count">{community.memberCount} members</span>
-                )}
-              </div>
-              <div className="community-actions">
-                <Link to={`/communities/${community._id}`} className="view-community-btn">
-                  View Community
-                </Link>
-                {isAuthenticated && community.isAdmin && (
-                  <>
-                    <Link to={`/communities/${community._id}/edit`} className="edit-btn">
-                      Edit Community
-                    </Link>
-                    <button 
-                      onClick={() => handleDeleteCommunity(community._id)}
-                      className="delete-btn"
-                    >
-                      Delete Community
-                    </button>
-                  </>
-                )}
-              </div>
+          {filteredCommunities.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No communities found matching your search.</p>
             </div>
-          ))
-        ) : (
-          <div className="no-results">
-            <p>No communities found matching your filters.</p>
-            <button 
-              className="clear-filters-button"
-              onClick={() => setFilteredCommunities(communities)}
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };

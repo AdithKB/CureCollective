@@ -4,12 +4,15 @@ import { productService, communityService } from '../services/api';
 import type { Product, User, Community } from '../types';
 import { MESSAGES } from '../constants';
 import { formatCurrency, calculateSavings } from '../utils/validation';
-import '../styles/ProductListing.css';
+import { useAuth } from '../hooks/useAuth';
+import Header from './Header';
+import Footer from './Footer';
 
 type SortOption = 'name' | 'price' | 'savings';
 
 const ProductListing: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user: authUser, logout } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,29 +23,12 @@ const ProductListing: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [categories, setCategories] = useState<string[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [userCommunities, setUserCommunities] = useState<Community[]>([]);
   const [selectedCommunity, setSelectedCommunity] = useState<string>('');
   const [showCommunityDropdown, setShowCommunityDropdown] = useState(false);
   
   // Fetch products and user data when component mounts
   useEffect(() => {
-    const loadUser = () => {
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        try {
-          const parsedUser = JSON.parse(userData);
-          setUser(parsedUser);
-          if (parsedUser._id) {
-            loadUserCommunities(parsedUser._id);
-          }
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-          setError('Error loading user data');
-        }
-      }
-    };
-
     const loadUserCommunities = async (userId: string) => {
       try {
         const response = await communityService.getAll();
@@ -80,9 +66,11 @@ const ProductListing: React.FC = () => {
       }
     };
 
-    loadUser();
+    if (authUser?._id) {
+      loadUserCommunities(authUser._id);
+    }
     loadProducts();
-  }, []);
+  }, [authUser]);
 
   // Apply filters when any filter state changes
   useEffect(() => {
@@ -147,6 +135,11 @@ const ProductListing: React.FC = () => {
     setFilteredProducts(results);
   }, [searchTerm, selectedCategory, priceRange, sortBy, sortOrder, products]);
 
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
   // Handle price range changes
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -184,156 +177,104 @@ const ProductListing: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading products...</div>;
+    return <div className="min-h-screen bg-[#f5f7fa] flex items-center justify-center">Loading...</div>;
   }
 
-  if (error) {
-    return <div className="error">{error}</div>;
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (
-    <div className="product-listing-container">
-      <div className="product-listing-header">
-        <div className="header-with-back">
-          <button className="back-button" onClick={() => navigate('/')}>
-            ← Back to Home
-          </button>
-          <h2>Available Products</h2>
-        </div>
-      </div>
-
-      <div className="filters-section">
-        <div className="filters-row">
-          <div className="search-container">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          <div className="filter-controls">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="category-select"
-            >
-              <option value="all">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="sort-select"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="price">Sort by Price</option>
-              <option value="savings">Sort by Savings</option>
-            </select>
-            <button
-              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="sort-order-button"
-            >
-              {sortOrder === 'asc' ? '↑' : '↓'}
-            </button>
-          </div>
-        </div>
-        
-        <div className="price-range-filter">
-          <div className="price-range-header">
-            <h3>Price Range</h3>
-            <button className="reset-price-range" onClick={() => setPriceRange({ min: '', max: '' })}>
-              Reset
-            </button>
-          </div>
-          <div className="price-range-inputs">
-            <div className="price-input-group">
-              <label htmlFor="min-price">Min Price</label>
-              <div className="price-input-wrapper">
-                <span className="currency-symbol">₹</span>
-                <input
-                  type="number"
-                  id="min-price"
-                  name="min"
-                  placeholder="0"
-                  value={priceRange.min}
-                  onChange={handlePriceChange}
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-            <div className="price-range-separator">to</div>
-            <div className="price-input-group">
-              <label htmlFor="max-price">Max Price</label>
-              <div className="price-input-wrapper">
-                <span className="currency-symbol">₹</span>
-                <input
-                  type="number"
-                  id="max-price"
-                  name="max"
-                  placeholder="1000"
-                  value={priceRange.max}
-                  onChange={handlePriceChange}
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#f5f7fa] text-[#333]">
+      <Header user={authUser} onLogout={handleLogout} />
       
-      {loading ? (
-        <div className="loading">Loading products...</div>
-      ) : error ? (
-        <div className="error">{error}</div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="no-products">No products found matching your criteria.</div>
-      ) : (
-        <div className="products-grid">
-          {filteredProducts.map(product => (
-            <div key={product._id} className="product-card">
-              <div className="product-image">
-                <img src={product.imageUrl || '/placeholder.png'} alt={product.name} />
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <h1 className="text-3xl font-bold">Available Products</h1>
+              <button
+                onClick={() => navigate('/add-product')}
+                className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors whitespace-nowrap"
+              >
+                Add Product
+              </button>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4 w-full">
+              <input
+                type="text"
+                placeholder="Search products..."
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <select
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <option value="all">All Categories</option>
+                {categories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                >
+                  <option value="name">Sort by Name</option>
+                  <option value="price">Sort by Price</option>
+                  <option value="savings">Sort by Savings</option>
+                </select>
+                <button
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className={`p-2 rounded-md transition-colors ${
+                    sortOrder === 'asc' 
+                      ? 'bg-[#4a6fa5] text-white hover:bg-[#3a5a8c]' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                  title={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                >
+                  {sortOrder === 'asc' ? '↑' : '↓'}
+                </button>
               </div>
-              <div className="product-details">
-                <div className="product-header">
-                  <h3>{product.name}</h3>
-                </div>
-                <div className="category">{product.category}</div>
-                <p className="description">{product.description}</p>
-                <div className="price-container">
-                  <div className="price-details">
-                    <div className="regular-price">
-                      <span className="label">Regular Price:</span>
-                      <span className="value">₹{product.regularPrice}</span>
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProducts.map(product => (
+              <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
+                  <p className="text-gray-600 mb-4">{product.description}</p>
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <span className="text-gray-500 line-through">₹{product.regularPrice}</span>
+                      <span className="text-[#4a6fa5] font-bold ml-2">₹{product.bulkPrice}</span>
                     </div>
-                    <div className="bulk-price">
-                      <span className="label">Bulk Price:</span>
-                      <span className="value">₹{product.bulkPrice}</span>
-                    </div>
+                    <span className="text-sm text-gray-500">Min: {product.minOrderQuantity}</span>
                   </div>
-                  <div className="min-order">
-                    <span className="label">Min Order:</span>
-                    <span className="value">{product.minOrderQuantity} units</span>
-                  </div>
-                </div>
-                <div className="savings">
-                  <span className="label">Savings:</span>
-                  <span className="value">{calculateSavings(product.regularPrice, product.bulkPrice, 1).percentage}%</span>
-                </div>
-                {user && userCommunities.length > 0 && (
-                  <div className="community-actions">
-                    {showCommunityDropdown ? (
-                      <div className="community-dropdown">
+                  {authUser?.userType === 'patient' && userCommunities.length > 0 && (
+                    <div className="mb-4">
+                      <button
+                        onClick={() => setShowCommunityDropdown(!showCommunityDropdown)}
+                        className="w-full bg-[#4a6fa5] text-white py-2 rounded-md hover:bg-[#3a5a8c] mb-2"
+                      >
+                        Add to Community
+                      </button>
+                      {showCommunityDropdown && (
                         <select
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
                           value={selectedCommunity}
                           onChange={(e) => setSelectedCommunity(e.target.value)}
-                          className="community-select"
                         >
                           <option value="">Select a community</option>
                           {userCommunities.map(community => (
@@ -342,38 +283,29 @@ const ProductListing: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                        <button
-                          onClick={() => handleAddToCommunity(product._id)}
-                          className="confirm-add-btn"
-                          disabled={!selectedCommunity}
-                        >
-                          Add to Community
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowCommunityDropdown(false);
-                            setSelectedCommunity('');
-                          }}
-                          className="cancel-btn"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowCommunityDropdown(true)}
-                        className="add-to-community-btn"
-                      >
-                        Add to Community
-                      </button>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => navigate(`/products/${product._id}`)}
+                    className="w-full bg-[#4a6fa5] text-white py-2 rounded-md hover:bg-[#3a5a8c]"
+                  >
+                    View Details
+                  </button>
+                </div>
               </div>
+            ))}
+          </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No products found matching your criteria.</p>
             </div>
-          ))}
+          )}
         </div>
-      )}
+      </main>
+
+      <Footer />
     </div>
   );
 };

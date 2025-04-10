@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productService } from '../services/api';
 import { MESSAGES } from '../constants';
-import '../styles/AddProduct.css';
+import { User } from '../types';
+import { useAuth } from '../hooks/useAuth';
+import Header from './Header';
+import Footer from './Footer';
 
 interface FormData {
   name: string;
@@ -16,6 +19,8 @@ interface FormData {
 
 const AddProduct: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -40,12 +45,30 @@ const AddProduct: React.FC = () => {
     'Mental Health',
     'Vitamins & Supplements'
   ];
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (!token || !storedUser) {
+      navigate('/');
+      return;
+    }
+    
+    setUser(JSON.parse(storedUser));
+  }, [navigate]);
+  
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    navigate('/');
+  };
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
     if (name === 'regularPrice' || name === 'bulkPrice' || name === 'minOrderQuantity') {
-      // For numeric fields, only allow valid numbers or empty string
       if (value === '' || !isNaN(parseFloat(value))) {
         setFormData(prev => ({
           ...prev,
@@ -53,7 +76,6 @@ const AddProduct: React.FC = () => {
         }));
       }
     } else {
-      // For non-numeric fields, update as is
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -64,14 +86,12 @@ const AddProduct: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
     if (!formData.name || !formData.description || !formData.regularPrice || 
         !formData.bulkPrice || !formData.minOrderQuantity || !formData.category) {
       setError(MESSAGES.ERRORS.REQUIRED_FIELD);
       return;
     }
     
-    // Convert string values to numbers
     const regularPrice = parseFloat(formData.regularPrice);
     const bulkPrice = parseFloat(formData.bulkPrice);
     const minOrderQuantity = parseFloat(formData.minOrderQuantity);
@@ -90,7 +110,6 @@ const AddProduct: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Create product data with numeric values
       const productData = {
         name: formData.name,
         description: formData.description,
@@ -101,12 +120,9 @@ const AddProduct: React.FC = () => {
         imageUrl: formData.imageUrl || undefined
       };
       
-      console.log('Submitting product data:', productData);
-      
       const response = await productService.create(productData);
       
       if (response.success) {
-        // Clear form and show success message
         setFormData({
           name: '',
           description: '',
@@ -119,7 +135,6 @@ const AddProduct: React.FC = () => {
         
         setSuccess(true);
         
-        // Clear success message after 3 seconds
         setTimeout(() => {
           setSuccess(false);
         }, 3000);
@@ -134,149 +149,181 @@ const AddProduct: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return <div className="min-h-screen bg-[#f5f7fa] flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
   
   return (
-    <div className="add-product-container">
-      <div className="add-product-card">
-        <div className="header-with-back">
-          <button className="back-button" onClick={() => navigate('/')}>
-            ← Back to Home
-          </button>
-          <h2>Add New Medication</h2>
-        </div>
-        <p className="subtitle">List your product for bulk ordering</p>
-        
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">Product added successfully!</div>}
-        
-        <form onSubmit={handleSubmit} className="product-form">
-          <div className="form-group">
-            <label htmlFor="name">Medication Name*</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              placeholder="e.g. Generic Ibuprofen 200mg"
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="category">Category*</label>
-            <select
-              id="category"
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              required
-            >
-              <option value="">Select a category</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="description">Description*</label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              required
-              rows={4}
-              placeholder="Provide detailed information about the medication, including uses, dosage forms, etc."
-            />
-          </div>
-          
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="regularPrice">Regular Price (₹)*</label>
-              <input
-                type="number"
-                id="regularPrice"
-                name="regularPrice"
-                value={formData.regularPrice}
-                onChange={handleChange}
-                required
-                min="0.01"
-                step="0.01"
-                placeholder="e.g. 19.99"
-              />
-            </div>
+    <div className="min-h-screen bg-[#f5f7fa] text-[#333]">
+      <Header user={user} onLogout={handleLogout} />
+      
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-lg shadow-md p-8">
+            <h2 className="text-2xl font-bold mb-2">Add New Medication</h2>
+            <p className="text-gray-600 mb-6">List your product for bulk ordering</p>
             
-            <div className="form-group">
-              <label htmlFor="bulkPrice">Bulk Price (₹)*</label>
-              <input
-                type="number"
-                id="bulkPrice"
-                name="bulkPrice"
-                value={formData.bulkPrice}
-                onChange={handleChange}
-                required
-                min="0.01"
-                step="0.01"
-                placeholder="e.g. 14.99"
-              />
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="minOrderQuantity">Minimum Order Quantity*</label>
-            <input
-              type="number"
-              id="minOrderQuantity"
-              name="minOrderQuantity"
-              value={formData.minOrderQuantity}
-              onChange={handleChange}
-              required
-              min="1"
-              placeholder="e.g. 100"
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="imageUrl">Image URL (Optional)</label>
-            <input
-              type="text"
-              id="imageUrl"
-              name="imageUrl"
-              value={formData.imageUrl}
-              onChange={handleChange}
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
-          
-          <div className="savings-calculator">
-            <h3>Savings Calculator</h3>
-            {formData.regularPrice && formData.bulkPrice ? (
-              <div className="savings-details">
-                <div className="savings-amount">
-                  <span>Savings per unit:</span>
-                  <strong>₹{(Number(formData.regularPrice) - Number(formData.bulkPrice)).toFixed(2)}</strong>
+            {error && (
+              <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
+                {error}
+              </div>
+            )}
+            
+            {success && (
+              <div className="p-4 bg-green-100 border border-green-400 text-green-700 rounded mb-6">
+                Product added successfully!
+              </div>
+            )}
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="form-group">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Medication Name*
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g. Generic Ibuprofen 200mg"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                  Category*
+                </label>
+                <select
+                  id="category"
+                  name="category"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={formData.category}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {categories.map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                  Description*
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={formData.description}
+                  onChange={handleChange}
+                  required
+                  rows={4}
+                  placeholder="Provide detailed information about the medication, including uses, dosage forms, etc."
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="form-group">
+                  <label htmlFor="regularPrice" className="block text-sm font-medium text-gray-700 mb-1">
+                    Regular Price (₹)*
+                  </label>
+                  <input
+                    type="number"
+                    id="regularPrice"
+                    name="regularPrice"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                    value={formData.regularPrice}
+                    onChange={handleChange}
+                    required
+                    min="0.01"
+                    step="0.01"
+                    placeholder="e.g. 19.99"
+                  />
                 </div>
-                <div className="savings-percentage">
-                  <span>Savings percentage:</span>
-                  <strong>
-                    {Number(formData.regularPrice) > 0 
-                      ? ((Number(formData.regularPrice) - Number(formData.bulkPrice)) / Number(formData.regularPrice) * 100).toFixed(0)
-                      : 0}%
-                  </strong>
+                
+                <div className="form-group">
+                  <label htmlFor="bulkPrice" className="block text-sm font-medium text-gray-700 mb-1">
+                    Bulk Price (₹)*
+                  </label>
+                  <input
+                    type="number"
+                    id="bulkPrice"
+                    name="bulkPrice"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                    value={formData.bulkPrice}
+                    onChange={handleChange}
+                    required
+                    min="0.01"
+                    step="0.01"
+                    placeholder="e.g. 14.99"
+                  />
                 </div>
               </div>
-            ) : (
-              <p className="savings-placeholder">Enter regular and bulk prices to see savings</p>
-            )}
+              
+              <div className="form-group">
+                <label htmlFor="minOrderQuantity" className="block text-sm font-medium text-gray-700 mb-1">
+                  Minimum Order Quantity*
+                </label>
+                <input
+                  type="number"
+                  id="minOrderQuantity"
+                  name="minOrderQuantity"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={formData.minOrderQuantity}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  placeholder="e.g. 100"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                  Image URL (Optional)
+                </label>
+                <input
+                  type="text"
+                  id="imageUrl"
+                  name="imageUrl"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={formData.imageUrl}
+                  onChange={handleChange}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] disabled:opacity-50"
+                >
+                  {loading ? 'Adding...' : 'Add Product'}
+                </button>
+              </div>
+            </form>
           </div>
-          
-          <button type="submit" className="submit-button" disabled={loading}>
-            {loading ? 'Adding Product...' : 'Add Product'}
-          </button>
-        </form>
-      </div>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };
