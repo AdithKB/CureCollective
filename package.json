@@ -1,0 +1,96 @@
+{
+  "name": "medcare-app",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@heroicons/react": "^2.0.0",
+    "axios": "^1.8.4",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.15.0",
+    "mongoose": "^8.13.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.3.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^4.9.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "server": "node server/server.js",
+    "dev:server": "nodemon server/server.js",
+    "dev:client": "set PORT=3000 && react-scripts start",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:api": "jest --config=server/jest.config.js server/__tests__ --detectOpenHandles",
+    "test:e2e": "jest e2e --detectOpenHandles",
+    "eject": "react-scripts eject",
+    "seed:products": "node server/scripts/seedProducts.js",
+    "seed:pharmacist": "node server/scripts/seedPharmacist.js"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.1",
+    "@types/react-router-dom": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "concurrently": "^8.2.2",
+    "jest": "^27.5.1",
+    "jest-environment-jsdom": "^29.7.0",
+    "mongodb-memory-server": "^10.1.4",
+    "nodemon": "^2.0.22",
+    "react-scripts": "^5.0.1",
+    "supertest": "^7.1.0"
+  },
+  "main": "tailwind.config.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "MedCare Application",
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/index.tsx",
+      "!src/reportWebVitals.ts"
+    ],
+    "moduleNameMapper": {
+      "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!react-router-dom/.*)"
+    ]
+  }
+}
