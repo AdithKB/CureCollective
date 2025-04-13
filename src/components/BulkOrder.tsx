@@ -11,6 +11,8 @@ interface OrderItem {
   productId: string;
   quantity: number;
   price: number;
+  name: string;
+  minOrderQuantity: number;
 }
 
 const BulkOrder: React.FC = () => {
@@ -54,12 +56,15 @@ const BulkOrder: React.FC = () => {
           const initialOrderItems = communityData.relatedMedications.map((product: any) => {
             const productId = typeof product === 'string' ? product : product._id;
             const productData = productsResponse.data?.find((p: Product) => p._id === productId);
+            if (!productData) return null;
             return {
               productId,
               quantity: 0,
-              price: productData?.bulkPrice || 0
+              price: productData.bulkPrice || 0,
+              name: productData.name,
+              minOrderQuantity: productData.minOrderQuantity
             };
-          });
+          }).filter(Boolean) as OrderItem[];
           setOrderItems(initialOrderItems);
         } else {
           setError('Failed to load data');
@@ -147,32 +152,27 @@ const BulkOrder: React.FC = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4">Available Products</h2>
             <div className="space-y-4">
-              {orderItems.map(item => {
-                const product = products.find(p => p._id === item.productId);
-                if (!product) return null;
-
-                return (
-                  <div key={product._id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">{product.name}</h3>
-                      <p className="text-gray-600">Bulk Price: ₹{product.bulkPrice}</p>
-                      <p className="text-sm text-gray-500">Min. Order: {product.minOrderQuantity} units</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <input
-                        type="number"
-                        min={product.minOrderQuantity}
-                        value={item.quantity}
-                        onChange={(e) => handleQuantityChange(product._id, parseInt(e.target.value))}
-                        className="w-24 px-3 py-2 border rounded-md"
-                      />
-                      <span className="text-gray-600">
-                        Total: ₹{(item.quantity * item.price).toFixed(2)}
-                      </span>
-                    </div>
+              {orderItems.map(item => (
+                <div key={item.productId} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="product-info">
+                    <h3 className="text-lg font-semibold">{item.name}</h3>
+                    <p className="text-gray-600">₹{item.price}</p>
+                    <p className="text-sm text-gray-500">Min. Order: {item.minOrderQuantity} units</p>
                   </div>
-                );
-              })}
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="number"
+                      min={item.minOrderQuantity}
+                      value={item.quantity}
+                      onChange={(e) => handleQuantityChange(item.productId, parseInt(e.target.value))}
+                      className="w-24 px-3 py-2 border rounded-md"
+                    />
+                    <span className="text-gray-600">
+                      Total: ₹{(item.quantity * item.price).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="mt-8 flex justify-end gap-4">

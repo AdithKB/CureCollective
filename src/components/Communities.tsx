@@ -107,22 +107,28 @@ const Communities: React.FC = () => {
       );
     }
     
-    // Apply other filters...
-    const matchesHealthCondition = !filters.condition || 
-                                 (results.length > 0 && 
-                                  results[0].healthConditions && 
-                                  results[0].healthConditions.includes(filters.condition));
-    const matchesLocation = !filters.location || 
-                          (results.length > 0 && 
-                           results[0].locations && 
-                           results[0].locations.includes(filters.location));
-    const matchesPrivacy = !filters.privacy || 
-                         (results.length > 0 && 
-                          results[0].privacy === filters.privacy);
-    const filtered = results.filter(community => 
-      matchesHealthCondition && matchesLocation && matchesPrivacy
-    );
-    setFilteredCommunities(filtered);
+    // Apply location filter
+    if (filters.location) {
+      results = results.filter(community => 
+        community.locations && community.locations.includes(filters.location)
+      );
+    }
+    
+    // Apply health condition filter
+    if (filters.condition) {
+      results = results.filter(community => 
+        community.healthConditions && community.healthConditions.includes(filters.condition)
+      );
+    }
+    
+    // Apply privacy filter
+    if (filters.privacy) {
+      results = results.filter(community => 
+        community.privacy === filters.privacy
+      );
+    }
+    
+    setFilteredCommunities(results);
   };
 
   const handleFilterChange = (newFilters: Filters) => {

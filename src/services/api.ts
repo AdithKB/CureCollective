@@ -157,124 +157,52 @@ export const productService = {
 
 // Community service
 export const communityService = {
-  create: async (communityData: any): Promise<ApiResponse<any>> => {
+  create: async (communityData: any) => {
+    const response = await api.post('/communities', communityData);
+    return response.data;
+  },
+  getAll: async () => {
+    const response = await api.get('/communities');
+    return response.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/communities/${id}`);
+    return response.data;
+  },
+  update: async (id: string, communityData: any) => {
     try {
-      const response = await api.post('/communities', communityData);
+      const response = await api.put(`/communities/${id}`, communityData);
       return {
         success: true,
-        data: response.data.data || response.data
+        community: response.data,
+        message: 'Community updated successfully'
       };
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || 'Failed to create community'
+        error: error.response?.data?.message || 'Failed to update community'
       };
     }
   },
-
-  getAll: async (): Promise<ApiResponse<any[]>> => {
-    try {
-      const response = await api.get('/communities');
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to fetch communities'
-      };
-    }
+  delete: async (id: string) => {
+    const response = await api.delete(`/communities/${id}`);
+    return response.data;
   },
-
-  getById: async (id: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.get(`/communities/${id}`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to fetch community'
-      };
-    }
+  join: async (id: string) => {
+    const response = await api.post(`/communities/${id}/join`);
+    return response.data;
   },
-
-  delete: async (id: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.delete(`/communities/${id}`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to delete community'
-      };
-    }
+  leave: async (id: string) => {
+    const response = await api.post(`/communities/${id}/leave`);
+    return response.data;
   },
-
-  join: async (communityId: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.post(`/communities/${communityId}/join`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to join community'
-      };
-    }
+  linkProduct: async (communityId: string, productId: string) => {
+    const response = await api.post(`/communities/${communityId}/products/${productId}`);
+    return response.data;
   },
-
-  leave: async (communityId: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.post(`/communities/${communityId}/leave`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to leave community'
-      };
-    }
-  },
-
-  linkProduct: async (communityId: string, productId: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.post(`/communities/${communityId}/products/${productId}`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to link product to community'
-      };
-    }
-  },
-
-  unlinkProduct: async (communityId: string, productId: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.delete(`/communities/${communityId}/products/${productId}`);
-      return {
-        success: true,
-        data: response.data.data || response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to unlink product from community'
-      };
-    }
+  unlinkProduct: async (communityId: string, productId: string) => {
+    const response = await api.delete(`/communities/${communityId}/products/${productId}`);
+    return response.data;
   }
 };
 

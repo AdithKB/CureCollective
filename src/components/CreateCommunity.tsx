@@ -183,11 +183,12 @@ const CreateCommunity: React.FC = () => {
               </div>
               
               <div className="form-group">
-                <label htmlFor="relatedMedications" className="block text-sm font-medium text-gray-700 mb-1">Related Medicines</label>
+                <label htmlFor="relatedMedications" className="block text-sm font-medium text-gray-700 mb-1">Related Products</label>
                 <select
                   id="relatedMedications"
                   name="relatedMedications"
                   multiple
+                  size={5}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
                   value={formData.relatedMedications}
                   onChange={handleMultiSelectChange}
@@ -199,7 +200,10 @@ const CreateCommunity: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-sm text-gray-500">Hold Ctrl/Cmd to select multiple medicines</p>
+                <div className="mt-2 flex items-center text-sm text-gray-500">
+                  <span className="mr-2">Selected: {formData.relatedMedications.length} products</span>
+                  <span>• Hold Ctrl/Cmd to select multiple products</span>
+                </div>
               </div>
               
               <div className="form-group">

@@ -39,11 +39,13 @@ const CommunityFilters: React.FC<CommunityFiltersProps> = ({ onFilterChange, pro
         className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
       >
         <option value="">All Health Conditions</option>
-        {healthConditions.map((condition) => (
-          <option key={condition.value} value={condition.value}>
-            {condition.label}
-          </option>
-        ))}
+        {[...healthConditions]
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .map((condition) => (
+            <option key={condition.value} value={condition.value}>
+              {condition.label}
+            </option>
+          ))}
       </select>
 
       <select
@@ -53,11 +55,13 @@ const CommunityFilters: React.FC<CommunityFiltersProps> = ({ onFilterChange, pro
         className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
       >
         <option value="">All Locations</option>
-        {locations.map((location) => (
-          <option key={location.value} value={location.value}>
-            {location.label}
-          </option>
-        ))}
+        {[...locations]
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .map((location) => (
+            <option key={location.value} value={location.value}>
+              {location.label}
+            </option>
+          ))}
       </select>
 
       <select
@@ -67,11 +71,13 @@ const CommunityFilters: React.FC<CommunityFiltersProps> = ({ onFilterChange, pro
         className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
       >
         <option value="">All Products</option>
-        {products.map((product) => (
-          <option key={product._id} value={product.name}>
-            {product.name}
-          </option>
-        ))}
+        {[...products]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((product) => (
+            <option key={product._id} value={product.name}>
+              {product.name}
+            </option>
+          ))}
       </select>
 
       <select

@@ -34,7 +34,6 @@ export const locations = [
   { value: 'chandigarh', label: 'Chandigarh' },
   { value: 'dadra-nagar-haveli', label: 'Dadra and Nagar Haveli' },
   { value: 'daman-diu', label: 'Daman and Diu' },
-  { value: 'delhi', label: 'Delhi' },
   { value: 'jammu-kashmir', label: 'Jammu and Kashmir' },
   { value: 'ladakh', label: 'Ladakh' },
   { value: 'lakshadweep', label: 'Lakshadweep' },

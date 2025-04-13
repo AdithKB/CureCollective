@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { communityService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/Community.css';
+import { productService } from '../services/api';
 
 interface Community {
   _id: string;
@@ -29,6 +30,11 @@ interface Community {
   }[];
 }
 
+interface Product {
+  _id: string;
+  name: string;
+}
+
 const Community: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -40,10 +46,36 @@ const Community: React.FC = () => {
   const [newPost, setNewPost] = useState('');
   const [isMember, setIsMember] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    description: string;
+    guidelines: string;
+    privacy: 'public' | 'private';
+    relatedMedications: string[];
+    locations: string[];
+  }>({
+    name: '',
+    description: '',
+    guidelines: '',
+    privacy: 'public',
+    relatedMedications: [],
+    locations: []
+  });
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [availableLocations] = useState([
+    { value: 'bangalore', label: 'Bangalore' },
+    { value: 'mumbai', label: 'Mumbai' },
+    { value: 'delhi', label: 'Delhi' },
+    { value: 'hyderabad', label: 'Hyderabad' },
+    { value: 'chennai', label: 'Chennai' }
+  ]);
 
   useEffect(() => {
     if (slug) {
       loadCommunity();
+      loadProducts();
     }
   }, [slug, user]);
 
@@ -57,7 +89,28 @@ const Community: React.FC = () => {
         );
         
         if (communityData) {
+          // Fetch product details for related medications
+          const productsResponse = await productService.getAll();
+          if (productsResponse.success && productsResponse.data) {
+            const productsMap = new Map(productsResponse.data.map((p: Product) => [p._id, p]));
+            const mappedRelatedMedications = communityData.relatedMedications.map((medication: string | { _id: string; name: string }) => {
+              const id = typeof medication === 'string' ? medication : medication._id;
+              const product = productsMap.get(id);
+              return product ? { _id: id, name: product.name } : id;
+            });
+            communityData.relatedMedications = mappedRelatedMedications;
+            setProducts(productsResponse.data);
+          }
+          
           setCommunity(communityData);
+          setEditForm({
+            name: communityData.name,
+            description: communityData.description,
+            guidelines: communityData.guidelines || '',
+            privacy: communityData.privacy,
+            relatedMedications: communityData.relatedMedications,
+            locations: communityData.locations
+          });
           // Check if current user is a member
           const isUserMember = communityData.members?.some(
             (member: { _id: string }) => member._id === user?._id
@@ -79,13 +132,96 @@ const Community: React.FC = () => {
     }
   };
 
+  const loadProducts = async () => {
+    try {
+      const response = await productService.getAll();
+      if (response.success && response.data) {
+        setProducts(response.data);
+      }
+    } catch (err) {
+      console.error('Error loading products:', err);
+    }
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleMultiSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, options } = e.target;
+    const selectedValues = Array.from(options)
+      .filter(option => option.selected)
+      .map(option => option.value);
+    
+    setEditForm(prev => ({
+      ...prev,
+      [name]: selectedValues
+    }));
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Ensure relatedMedications are strings (product IDs)
+      const formData = {
+        ...editForm,
+        relatedMedications: editForm.relatedMedications.map((med: string | { _id: string; name: string }) => {
+          if (typeof med === 'string') {
+            return med;
+          }
+          return med._id;
+        }),
+        locations: editForm.locations // Ensure locations are included in the form data
+      };
+      
+      const response = await communityService.update(community!._id, formData);
+      if (response.success) {
+        // Map the product IDs to their names using the products state
+        const updatedRelatedMedications = formData.relatedMedications.map((medId: string) => {
+          const product = products.find(p => p._id === medId);
+          return product ? { _id: medId, name: product.name } : medId;
+        });
+
+        // Update the community state with the new data
+        setCommunity(prev => ({
+          ...prev!,
+          name: formData.name,
+          description: formData.description,
+          guidelines: formData.guidelines,
+          privacy: formData.privacy,
+          relatedMedications: updatedRelatedMedications,
+          locations: formData.locations // Ensure locations are updated in the state
+        }));
+
+        // Update the edit form with the new data
+        setEditForm(prev => ({
+          ...prev,
+          locations: formData.locations // Ensure locations are updated in the edit form
+        }));
+        
+        setIsEditing(false);
+        setSuccess('Community updated successfully');
+        setError('');
+      } else {
+        setError(response.error || 'Failed to update community');
+      }
+    } catch (error) {
+      console.error('Error updating community:', error);
+      setError('Failed to update community');
+    }
+  };
+
   const handleJoinCommunity = async () => {
     try {
       const response = await communityService.join(community!._id);
       if (response.success) {
         setIsMember(true);
         setSuccess('Successfully joined the community!');
-        await loadCommunity(); // Reload community data to update member count
+        await loadCommunity();
       } else {
         setError(response.error || 'Failed to join community');
       }
@@ -95,17 +231,19 @@ const Community: React.FC = () => {
   };
 
   const handleLeaveCommunity = async () => {
-    try {
-      const response = await communityService.leave(community!._id);
-      if (response.success) {
-        setIsMember(false);
-        setSuccess('Successfully left the community');
-        await loadCommunity(); // Reload community data to update member count
-      } else {
-        setError(response.error || 'Failed to leave community');
+    if (window.confirm('Are you sure you want to leave this community?')) {
+      try {
+        const response = await communityService.leave(community!._id);
+        if (response.success) {
+          setIsMember(false);
+          setSuccess('Successfully left the community');
+          await loadCommunity();
+        } else {
+          setError(response.error || 'Failed to leave community');
+        }
+      } catch (err) {
+        setError('Failed to leave community');
       }
-    } catch (err) {
-      setError('Failed to leave community');
     }
   };
 
@@ -123,16 +261,18 @@ const Community: React.FC = () => {
   };
 
   const handleDeleteCommunity = async () => {
-    try {
-      const response = await communityService.delete(community!._id);
-      if (response.success) {
-        setSuccess('Community deleted successfully');
-        navigate('/communities');
-      } else {
-        setError(response.error || 'Failed to delete community');
+    if (window.confirm('Are you sure you want to delete this community? This action cannot be undone.')) {
+      try {
+        const response = await communityService.delete(community!._id);
+        if (response.success) {
+          setSuccess('Community deleted successfully');
+          navigate('/communities');
+        } else {
+          setError(response.error || 'Failed to delete community');
+        }
+      } catch (err) {
+        setError('Failed to delete community');
       }
-    } catch (err) {
-      setError('Failed to delete community');
     }
   };
 
@@ -170,9 +310,21 @@ const Community: React.FC = () => {
         <div className="community-actions">
           {isCreator ? (
             <>
-              <Link to={`/communities/${community._id}/edit`} className="edit-btn">
-                Edit Community
-              </Link>
+              {isEditing ? (
+                <button 
+                  onClick={() => setIsEditing(false)}
+                  className="cancel-btn"
+                >
+                  Cancel Edit
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="edit-btn"
+                >
+                  Edit Community
+                </button>
+              )}
               <button 
                 onClick={handleDeleteCommunity}
                 className="delete-btn"
@@ -197,75 +349,166 @@ const Community: React.FC = () => {
       </div>
 
       {success && <div className="success-message">{success}</div>}
+      {error && <div className="error-message">{error}</div>}
 
       <div className="community-content">
         <div className="community-info">
-          <div className="info-section">
-            <h2>About</h2>
-            <p>{community.description}</p>
-            <div className="mt-4">
-              <span className="text-sm text-gray-500">
-                {community.members?.length || 0} members
-              </span>
-            </div>
-          </div>
+          {isEditing ? (
+            <form onSubmit={handleEditSubmit} className="edit-form">
+              <div className="form-group">
+                <label htmlFor="name">Community Name</label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={editForm.name}
+                  onChange={handleEditChange}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="description">Description</label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={editForm.description}
+                  onChange={handleEditChange}
+                  required
+                />
+              </div>
 
-          <div className="info-section">
-            <h2>Health Conditions</h2>
-            <div className="tags">
-              {community.healthConditions && community.healthConditions.length > 0 ? (
-                community.healthConditions.map((condition, index) => (
-                  <span key={index} className="tag">
-                    {condition}
-                  </span>
-                ))
-              ) : (
-                <span className="no-tags">No conditions specified</span>
+              <div className="form-group">
+                <label htmlFor="relatedMedications">Related Products</label>
+                <select
+                  id="relatedMedications"
+                  name="relatedMedications"
+                  multiple
+                  size={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={editForm.relatedMedications}
+                  onChange={handleMultiSelectChange}
+                >
+                  {products.map(product => (
+                    <option key={product._id} value={product._id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2 flex items-center text-sm text-gray-500">
+                  <span className="mr-2">Selected: {editForm.relatedMedications.length} products</span>
+                  <span>• Hold Ctrl/Cmd to select multiple products</span>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="locations">Locations</label>
+                <select
+                  id="locations"
+                  name="locations"
+                  multiple
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                  value={editForm.locations}
+                  onChange={handleMultiSelectChange}
+                >
+                  {availableLocations.map(location => (
+                    <option key={location.value} value={location.value}>
+                      {location.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-sm text-gray-500">Hold Ctrl/Cmd to select multiple locations</p>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="privacy">Privacy Setting</label>
+                <select
+                  id="privacy"
+                  name="privacy"
+                  value={editForm.privacy}
+                  onChange={handleEditChange}
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="guidelines">Community Guidelines</label>
+                <textarea
+                  id="guidelines"
+                  name="guidelines"
+                  value={editForm.guidelines}
+                  onChange={handleEditChange}
+                />
+              </div>
+              
+              <div className="form-actions">
+                <button type="submit" className="save-btn">Save Changes</button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="info-section">
+                <h2>Description</h2>
+                <p>{community.description}</p>
+              </div>
+
+              <div className="info-section">
+                <h2>Health Conditions</h2>
+                <div className="tags">
+                  {community.healthConditions && community.healthConditions.length > 0 ? (
+                    community.healthConditions.map((condition, index) => (
+                      <span key={index} className="tag">
+                        {condition}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="no-tags">No health conditions specified</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="info-section">
+                <h2>Related Products</h2>
+                <div className="tags">
+                  {community.relatedMedications && community.relatedMedications.length > 0 ? (
+                    community.relatedMedications.map((medication: string | { _id: string; name: string }) => (
+                      <span 
+                        key={typeof medication === 'string' ? medication : medication._id} 
+                        className="tag"
+                      >
+                        {typeof medication === 'string' ? medication : medication.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="no-tags">No related products specified</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="info-section">
+                <h2>Locations</h2>
+                <div className="tags">
+                  {community.locations && community.locations.length > 0 ? (
+                    community.locations.map((location, index) => (
+                      <span key={index} className="tag">
+                        {location}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="no-tags">No locations specified</span>
+                  )}
+                </div>
+              </div>
+
+              {community.guidelines && (
+                <div className="info-section">
+                  <h2>Community Guidelines</h2>
+                  <p>{community.guidelines}</p>
+                </div>
               )}
-            </div>
-          </div>
-
-          <div className="info-section">
-            <h2>Related Products</h2>
-            <div className="tags">
-              {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                community.relatedMedications.map((medicine) => {
-                  const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
-                  const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
-                  return (
-                    <span key={medicineId} className="tag">
-                      {medicineName}
-                    </span>
-                  );
-                })
-              ) : (
-                <span className="no-tags">
-                  <i className="fas fa-pills"></i> No products added yet
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="info-section">
-            <h2>Locations</h2>
-            <div className="tags">
-              {community.locations && community.locations.length > 0 ? (
-                community.locations.map((location, index) => (
-                  <span key={index} className="tag">
-                    {location}
-                  </span>
-                ))
-              ) : (
-                <span className="no-tags">No locations specified</span>
-              )}
-            </div>
-          </div>
-
-          {community.guidelines && (
-            <div className="info-section">
-              <h2>Community Guidelines</h2>
-              <p>{community.guidelines}</p>
-            </div>
+            </>
           )}
         </div>
 
