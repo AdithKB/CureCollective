@@ -276,4 +276,31 @@ export const communityService = {
       };
     }
   }
+};
+
+export const orderService = {
+  createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number }>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ communityId, items })
+      });
+
+      const data = await response.json();
+      return {
+        success: response.ok,
+        data: data.data,
+        error: data.error
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to create bulk order'
+      };
+    }
+  }
 }; 

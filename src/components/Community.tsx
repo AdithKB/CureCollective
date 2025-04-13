@@ -30,7 +30,7 @@ interface Community {
 }
 
 const Community: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [community, setCommunity] = useState<Community | null>(null);
@@ -42,24 +42,32 @@ const Community: React.FC = () => {
   const [isCreator, setIsCreator] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    if (slug) {
       loadCommunity();
     }
-  }, [id, user]);
+  }, [slug, user]);
 
   const loadCommunity = async () => {
     try {
       setLoading(true);
-      const response = await communityService.getById(id!);
+      const response = await communityService.getAll();
       if (response.success && response.data) {
-        setCommunity(response.data);
-        // Check if current user is a member
-        const isUserMember = response.data.members?.some(
-          (member: { _id: string }) => member._id === user?._id
+        const communityData = response.data.find(
+          (c: Community) => c.name.toLowerCase().replace(/\s+/g, '-') === slug
         );
-        setIsMember(isUserMember);
-        // Check if current user is the creator
-        setIsCreator(response.data.creator?._id === user?._id);
+        
+        if (communityData) {
+          setCommunity(communityData);
+          // Check if current user is a member
+          const isUserMember = communityData.members?.some(
+            (member: { _id: string }) => member._id === user?._id
+          );
+          setIsMember(isUserMember);
+          // Check if current user is the creator
+          setIsCreator(communityData.creator?._id === user?._id);
+        } else {
+          setError('Community not found');
+        }
       } else {
         setError('Failed to load community');
       }
@@ -73,7 +81,7 @@ const Community: React.FC = () => {
 
   const handleJoinCommunity = async () => {
     try {
-      const response = await communityService.join(id!);
+      const response = await communityService.join(community!._id);
       if (response.success) {
         setIsMember(true);
         setSuccess('Successfully joined the community!');
@@ -88,7 +96,7 @@ const Community: React.FC = () => {
 
   const handleLeaveCommunity = async () => {
     try {
-      const response = await communityService.leave(id!);
+      const response = await communityService.leave(community!._id);
       if (response.success) {
         setIsMember(false);
         setSuccess('Successfully left the community');
@@ -114,9 +122,9 @@ const Community: React.FC = () => {
     }
   };
 
-  const handleDeleteCommunity = async (communityId: string) => {
+  const handleDeleteCommunity = async () => {
     try {
-      const response = await communityService.delete(communityId);
+      const response = await communityService.delete(community!._id);
       if (response.success) {
         setSuccess('Community deleted successfully');
         navigate('/communities');
@@ -166,7 +174,7 @@ const Community: React.FC = () => {
                 Edit Community
               </Link>
               <button 
-                onClick={() => handleDeleteCommunity(community._id)}
+                onClick={handleDeleteCommunity}
                 className="delete-btn"
               >
                 Delete Community
@@ -195,6 +203,11 @@ const Community: React.FC = () => {
           <div className="info-section">
             <h2>About</h2>
             <p>{community.description}</p>
+            <div className="mt-4">
+              <span className="text-sm text-gray-500">
+                {community.members?.length || 0} members
+              </span>
+            </div>
           </div>
 
           <div className="info-section">
@@ -213,7 +226,7 @@ const Community: React.FC = () => {
           </div>
 
           <div className="info-section">
-            <h2>Related Medications</h2>
+            <h2>Related Products</h2>
             <div className="tags">
               {community.relatedMedications && community.relatedMedications.length > 0 ? (
                 community.relatedMedications.map((medicine) => {
@@ -227,7 +240,7 @@ const Community: React.FC = () => {
                 })
               ) : (
                 <span className="no-tags">
-                  <i className="fas fa-pills"></i> No medications added yet
+                  <i className="fas fa-pills"></i> No products added yet
                 </span>
               )}
             </div>
@@ -286,6 +299,29 @@ const Community: React.FC = () => {
               ))
             ) : (
               <p className="no-posts">No posts yet. Be the first to share!</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="community-footer">
+        <div className="flex flex-col items-start gap-2">
+          <div className="flex gap-2 w-full">
+            {isMember && (
+              <button
+                onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/place-order`)}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                Place Order
+              </button>
+            )}
+            {isCreator && (
+              <button
+                onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/orders`)}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                View Orders
+              </button>
             )}
           </div>
         </div>

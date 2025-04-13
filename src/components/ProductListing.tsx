@@ -286,12 +286,20 @@ const ProductListing: React.FC = () => {
                       )}
                     </div>
                   )}
-                  <button
-                    onClick={() => navigate(`/products/${product._id}`)}
-                    className="w-full bg-[#4a6fa5] text-white py-2 rounded-md hover:bg-[#3a5a8c]"
-                  >
-                    View Details
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => navigate('/communities', { state: { selectedProduct: product.name } })}
+                      className="w-full bg-[#4a6fa5] text-white py-2 rounded-md hover:bg-[#3a5a8c]"
+                    >
+                      View Communities
+                    </button>
+                    <button
+                      onClick={() => navigate(`/checkout?product=${product._id}`)}
+                      className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700"
+                    >
+                      Buy Now
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

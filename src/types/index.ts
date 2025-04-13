@@ -16,13 +16,12 @@ export interface Product {
   _id: string;
   name: string;
   description: string;
+  manufacturer: string;
   regularPrice: number;
   bulkPrice: number;
   minOrderQuantity: number;
   category: string;
   imageUrl?: string;
-  manufacturer: string;
-  stock: number;
   createdAt: string;
   updatedAt: string;
 }

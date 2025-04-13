@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { communityService } from '../services/api';
-import { Community, User } from '../types';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { communityService, productService } from '../services/api';
+import { Community, User, Product } from '../types';
 import CommunityFilters from './CommunityFilters';
 import '../styles/Communities.css';
 import { useAuth } from '../hooks/useAuth';
@@ -19,21 +19,31 @@ interface Location {
 interface Filters {
   location: string;
   condition: string;
+  privacy: string;
   medication: string;
+}
+
+interface LocationState {
+  selectedProduct?: string;
 }
 
 const Communities: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, user: authUser, logout } = useAuth();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [filteredCommunities, setFilteredCommunities] = useState<Community[]>([]);
   const [myCommunities, setMyCommunities] = useState<Community[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedHealthCondition, setSelectedHealthCondition] = useState<string>('');
-  const [selectedLocation, setSelectedLocation] = useState<string>('');
-  const [selectedPrivacy, setSelectedPrivacy] = useState<string>('');
+  const [filters, setFilters] = useState<Filters>({
+    location: '',
+    condition: '',
+    privacy: '',
+    medication: ''
+  });
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -45,7 +55,79 @@ const Communities: React.FC = () => {
     }
     
     fetchCommunities();
+    fetchProducts();
   }, [navigate]);
+
+  // Handle initial product selection from state
+  useEffect(() => {
+    if (products.length > 0 && (location.state as LocationState)?.selectedProduct) {
+      const selectedProduct = (location.state as LocationState).selectedProduct!;
+      setFilters(prev => ({ ...prev, medication: selectedProduct }));
+      // Filter communities immediately
+      const filtered = communities.filter(community => 
+        community.relatedMedications && community.relatedMedications.some(med => {
+          if (typeof med === 'string') {
+            return med.toLowerCase() === selectedProduct.toLowerCase();
+          } else if (med.name) {
+            return med.name.toLowerCase() === selectedProduct.toLowerCase();
+          }
+          return false;
+        })
+      );
+      setFilteredCommunities(filtered);
+    }
+  }, [products, location.state, communities]);
+
+  useEffect(() => {
+    filterCommunities();
+  }, [searchTerm, filters, communities]);
+
+  const filterCommunities = () => {
+    let results = [...communities];
+    
+    // Apply search filter
+    if (searchTerm) {
+      results = results.filter(community => 
+        community.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        community.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply product filter
+    if (filters.medication) {
+      results = results.filter(community => 
+        community.relatedMedications && community.relatedMedications.some(med => {
+          if (typeof med === 'string') {
+            return med.toLowerCase() === filters.medication.toLowerCase();
+          } else if (med.name) {
+            return med.name.toLowerCase() === filters.medication.toLowerCase();
+          }
+          return false;
+        })
+      );
+    }
+    
+    // Apply other filters...
+    const matchesHealthCondition = !filters.condition || 
+                                 (results.length > 0 && 
+                                  results[0].healthConditions && 
+                                  results[0].healthConditions.includes(filters.condition));
+    const matchesLocation = !filters.location || 
+                          (results.length > 0 && 
+                           results[0].locations && 
+                           results[0].locations.includes(filters.location));
+    const matchesPrivacy = !filters.privacy || 
+                         (results.length > 0 && 
+                          results[0].privacy === filters.privacy);
+    const filtered = results.filter(community => 
+      matchesHealthCondition && matchesLocation && matchesPrivacy
+    );
+    setFilteredCommunities(filtered);
+  };
+
+  const handleFilterChange = (newFilters: Filters) => {
+    setFilters(newFilters);
+  };
 
   const handleLogout = () => {
     logout();
@@ -76,6 +158,17 @@ const Communities: React.FC = () => {
       console.error('Error fetching communities:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await productService.getAll();
+      if (response.success && response.data) {
+        setProducts(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching products:', err);
     }
   };
 
@@ -118,21 +211,6 @@ const Communities: React.FC = () => {
     }
   };
 
-  const handleFilterChange = (filters: Filters) => {
-    const filtered = communities.filter(community => {
-      const matchesSearch = community.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          community.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesHealthCondition = !filters.condition || 
-                                   (community.healthConditions && 
-                                    community.healthConditions.includes(filters.condition));
-      const matchesLocation = !filters.location || 
-                            (community.locations && 
-                             community.locations.includes(filters.location));
-      return matchesSearch && matchesHealthCondition && matchesLocation;
-    });
-    setFilteredCommunities(filtered);
-  };
-
   if (loading) {
     return <div className="min-h-screen bg-[#f5f7fa] flex items-center justify-center">Loading...</div>;
   }
@@ -172,36 +250,50 @@ const Communities: React.FC = () => {
             </div>
           )}
 
+          <CommunityFilters 
+            onFilterChange={handleFilterChange} 
+            products={products} 
+            initialFilters={filters}
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCommunities.map(community => (
               <div key={community._id} className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="p-6">
                   <h3 className="text-xl font-semibold mb-2">{community.name}</h3>
                   <p className="text-gray-600 mb-4">{community.description}</p>
-                  <div className="mb-4">
-                    <h4 className="font-medium mb-2">Related Medications:</h4>
-                    {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                      <ul className="list-disc list-inside text-gray-600">
-                        {community.relatedMedications.map((med, index) => (
-                          <li key={index}>
-                            {typeof med === 'string' ? med : med.name}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-gray-500">No medications added yet</p>
-                    )}
+                  <div className="info-section">
+                    <h2>Related Products</h2>
+                    <div className="tags">
+                      {community.relatedMedications && community.relatedMedications.length > 0 ? (
+                        community.relatedMedications.map((medicine) => {
+                          const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
+                          const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
+                          return (
+                            <span key={medicineId} className="tag">
+                              {medicineName}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="no-tags">
+                          <i className="fas fa-pills"></i> No products added yet
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm text-gray-500 mb-2">
+                  <div className="flex flex-col items-start gap-2">
+                    <span className="text-sm text-gray-500">
                       {community.members.length} members
                     </span>
-                    <button
-                      onClick={() => navigate(`/communities/${community._id}`)}
-                      className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c]"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex gap-2 w-full">
+                      <button
+                        onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}`)}
+                        className="flex-1 px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c]"
+                      >
+                        View Community
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

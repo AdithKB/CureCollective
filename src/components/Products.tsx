@@ -125,10 +125,10 @@ const Products: React.FC = () => {
                     <span className="text-sm text-gray-500">Min: {product.minOrderQuantity}</span>
                   </div>
                   <button
-                    onClick={() => navigate(`/products/${product._id}`)}
-                    className="w-full bg-[#4a6fa5] text-white py-2 rounded-md hover:bg-[#3a5a8c]"
+                    onClick={() => navigate('/communities', { state: { selectedProduct: product.name } })}
+                    className="w-full px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c]"
                   >
-                    View Details
+                    View Communities
                   </button>
                 </div>
               </div>

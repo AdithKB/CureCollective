@@ -1,23 +1,27 @@
 import React from 'react';
-import { locations } from '../data/locations';
 import { healthConditions } from '../data/healthConditions';
-import { medicines } from '../data/medicines';
-import '../styles/CommunityFilters.css';
+import { locations } from '../data/locations';
+import { Product } from '../types';
 
-interface FilterProps {
-  onFilterChange: (filters: {
-    location: string;
-    condition: string;
-    medication: string;
-  }) => void;
+interface Filters {
+  location: string;
+  condition: string;
+  privacy: string;
+  medication: string;
 }
 
-const CommunityFilters: React.FC<FilterProps> = ({ onFilterChange }) => {
-  const [filters, setFilters] = React.useState({
-    location: '',
-    condition: '',
-    medication: ''
-  });
+interface CommunityFiltersProps {
+  onFilterChange: (filters: Filters) => void;
+  products: Product[];
+  initialFilters: Filters;
+}
+
+const CommunityFilters: React.FC<CommunityFiltersProps> = ({ onFilterChange, products, initialFilters }) => {
+  const [filters, setFilters] = React.useState<Filters>(initialFilters);
+
+  React.useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -27,57 +31,59 @@ const CommunityFilters: React.FC<FilterProps> = ({ onFilterChange }) => {
   };
 
   return (
-    <div className="filters-container">
-      <div className="filter-group">
-        <label htmlFor="location">Location</label>
-        <select
-          id="location"
-          name="location"
-          value={filters.location}
-          onChange={handleChange}
-        >
-          <option value="">All Locations</option>
-          {locations.map(location => (
-            <option key={location.value} value={location.value}>
-              {location.label}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <select
+        name="condition"
+        value={filters.condition}
+        onChange={handleChange}
+        className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+      >
+        <option value="">All Health Conditions</option>
+        {healthConditions.map((condition) => (
+          <option key={condition.value} value={condition.value}>
+            {condition.label}
+          </option>
+        ))}
+      </select>
 
-      <div className="filter-group">
-        <label htmlFor="condition">Health Condition</label>
-        <select
-          id="condition"
-          name="condition"
-          value={filters.condition}
-          onChange={handleChange}
-        >
-          <option value="">All Conditions</option>
-          {healthConditions.map(condition => (
-            <option key={condition.value} value={condition.value}>
-              {condition.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <select
+        name="location"
+        value={filters.location}
+        onChange={handleChange}
+        className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+      >
+        <option value="">All Locations</option>
+        {locations.map((location) => (
+          <option key={location.value} value={location.value}>
+            {location.label}
+          </option>
+        ))}
+      </select>
 
-      <div className="filter-group">
-        <label htmlFor="medication">Medication</label>
-        <select
-          id="medication"
-          name="medication"
-          value={filters.medication}
-          onChange={handleChange}
-        >
-          <option value="">All Medications</option>
-          {medicines.map(medicine => (
-            <option key={medicine.value} value={medicine.value}>
-              {medicine.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <select
+        name="medication"
+        value={filters.medication}
+        onChange={handleChange}
+        className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+      >
+        <option value="">All Products</option>
+        {products.map((product) => (
+          <option key={product._id} value={product.name}>
+            {product.name}
+          </option>
+        ))}
+      </select>
+
+      <select
+        name="privacy"
+        value={filters.privacy}
+        onChange={handleChange}
+        className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+      >
+        <option value="">All Privacy Settings</option>
+        <option value="public">Public</option>
+        <option value="private">Private</option>
+      </select>
     </div>
   );
 };

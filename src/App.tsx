@@ -7,6 +7,7 @@ import Profile from './components/Profile';
 import CreateCommunity from './components/CreateCommunity';
 import Communities from './components/Communities';
 import Community from './components/Community';
+import BulkOrder from './components/BulkOrder';
 
 const App: React.FC = () => {
   return (
@@ -18,7 +19,8 @@ const App: React.FC = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/create-community" element={<CreateCommunity />} />
         <Route path="/communities" element={<Communities />} />
-        <Route path="/communities/:id" element={<Community />} />
+        <Route path="/communities/:slug" element={<Community />} />
+        <Route path="/communities/:slug/place-order" element={<BulkOrder />} />
         {/* Add more routes as needed */}
       </Routes>
     </Router>
