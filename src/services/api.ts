@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../constants';
-import { ApiResponse, Product, User } from '../types';
+import { ApiResponse, Product, User, Community, PricingTier, PricingTierData, Order } from '../types';
+import { MESSAGES } from '../constants';
 
 interface RegisterData {
   name: string;
@@ -14,12 +15,13 @@ interface ApiError {
   data?: any;
 }
 
-interface ServerResponse {
+interface ServerResponse<T = any> {
   success: boolean;
   token?: string;
   user?: User;
   message?: string;
   error?: string;
+  data?: T;
 }
 
 const api = axios.create({
@@ -110,6 +112,7 @@ export const productService = {
   getAll: async (): Promise<ApiResponse<Product[]>> => {
     try {
       const response = await api.get<ApiResponse<Product[]>>('/products');
+      console.log('Products API Response:', response.data);
       return response.data;
     } catch (error: any) {
       return {
@@ -169,6 +172,10 @@ export const communityService = {
     const response = await api.get(`/communities/${id}`);
     return response.data;
   },
+  getBySlug: async (slug: string) => {
+    const response = await api.get(`/communities/slug/${slug}`);
+    return response.data;
+  },
   update: async (id: string, communityData: any) => {
     try {
       const response = await api.put(`/communities/${id}`, communityData);
@@ -207,28 +214,128 @@ export const communityService = {
 };
 
 export const orderService = {
-  createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number }>) => {
+  createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier; additionalDiscount?: number }>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/orders/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ communityId, items })
+      const response = await api.post('/orders/bulk', {
+        community: communityId,
+        items
       });
-
-      const data = await response.json();
-      return {
-        success: response.ok,
-        data: data.data,
-        error: data.error
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Failed to create bulk order'
+      
+      return { success: true, data: response.data.data };
+    } catch (error: any) {
+      console.error('Error creating bulk order:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
       };
     }
-  }
+  },
+
+  getMyOrders: async () => {
+    try {
+      const response = await api.get('/orders');
+      return { success: true, data: response.data.data };
+    } catch (error: any) {
+      console.error('Error fetching orders:', error);
+      if (error.response?.status === 404) {
+        return { success: true, data: [] };
+      }
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+      };
+    }
+  },
+
+  getCommunityOrders: async (communityId: string) => {
+    try {
+      console.log('Fetching community orders for community:', communityId);
+      const response = await api.get(`/orders/community/${communityId}`);
+      console.log('Community orders response:', response.data);
+      
+      // Ensure we have a valid data structure
+      if (!response.data || !response.data.data) {
+        console.warn('Invalid response structure for community orders:', response.data);
+        return { success: true, data: [] };
+      }
+      
+      return { success: true, data: response.data.data };
+    } catch (error: any) {
+      console.error('Error fetching community orders:', error);
+      if (error.response?.status === 404) {
+        return { success: true, data: [] };
+      }
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+      };
+    }
+  },
+
+  createDirectOrder: async (items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier }>) => {
+    try {
+      console.log('Creating direct order with data:', {
+        type: 'direct',
+        items: items.map(item => ({
+          product: item.product,
+          quantity: item.quantity,
+          price: item.price,
+          pricingTier: item.pricingTier
+        }))
+      });
+
+      const response = await api.post('/orders', {
+        type: 'direct',
+        items: items.map(item => ({
+          product: item.product,
+          quantity: item.quantity,
+          price: item.price,
+          pricingTier: item.pricingTier
+        }))
+      });
+
+      console.log('Order creation response:', response.data);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('Error creating direct order:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+      };
+    }
+  },
+
+  deleteOrder: async (orderId: string) => {
+    try {
+      const response = await api.delete(`/orders/${orderId}`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('Error deleting order:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+      };
+    }
+  },
+
+  releaseOrders: async (orderIds: string[]): Promise<ServerResponse<any>> => {
+    try {
+      const response = await api.post('/orders/release', { orderIds });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error: any) {
+      console.error('Error releasing orders:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR
+      };
+    }
+  },
 }; 

@@ -294,7 +294,7 @@ const ProductListing: React.FC = () => {
                       View Communities
                     </button>
                     <button
-                      onClick={() => navigate(`/checkout?product=${product._id}`)}
+                      onClick={() => navigate(`/products/${product.name.toLowerCase().replace(/\s+/g, '-')}/order`)}
                       className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700"
                     >
                       Buy Now

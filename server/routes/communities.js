@@ -89,6 +89,40 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// Get community by slug
+router.get('/slug/:slug', async (req, res) => {
+    try {
+        const communities = await Community.find()
+            .populate('creator', 'name')
+            .populate('members', 'name')
+            .populate('relatedMedications', 'name')
+            .populate('linkedProducts.product', 'name price bulkPrice minOrderQuantity regularPrice');
+        
+        const community = communities.find(c => 
+            c.name.toLowerCase().replace(/\s+/g, '-') === req.params.slug
+        );
+        
+        if (!community) {
+            return res.status(404).json({
+                success: false,
+                message: 'Community not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: community
+        });
+    } catch (error) {
+        console.error('Error fetching community by slug:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Server error fetching community',
+            error: error.message
+        });
+    }
+});
+
 // Join a community
 router.post('/:id/join', auth, async (req, res) => {
     try {

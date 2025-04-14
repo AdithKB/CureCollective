@@ -34,11 +34,24 @@ export const useAuth = () => {
         const response = await authService.getProfile();
         if (response.success && response.user) {
           setUser(response.user);
+        } else {
+          // Only clear token if the profile fetch explicitly fails
+          if (response.error === 'Invalid token' || response.error === 'Token expired') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
         }
       } catch (err) {
         console.error('Auth check error:', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        // Only clear token on network errors or server errors
+        if (err instanceof Error && (
+          err.message.includes('Network Error') || 
+          err.message.includes('500') ||
+          err.message.includes('401')
+        )) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       } finally {
         setLoading(false);
       }
