@@ -1,0 +1,5 @@
+[33m5fd8317[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Major update: Implemented community bulk ordering system with improved UI and fixed bugs. Added BulkOrderDemo component, updated Profile UI with tabs, fixed logout functionality, and improved order management.
+[33m834142d[m Community edits and filters
+[33m67ecd6e[m[33m ([m[1;31morigin/master[m[33m)[m community finder improvements
+[33m96b2c1b[m Signup, Products, Communities
+[33m326378f[m Initial commit: MyCareApp with community features
