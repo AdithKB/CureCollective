@@ -1,4 +1,4 @@
-import { Product, PricingTier, PricingTierData, Order } from '../types';
+import { Product, PricingTier, PricingTierData, Order } from '../types/index';
 
 interface BulkOrderProduct extends Product {
   orders: Array<{

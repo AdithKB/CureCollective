@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Product } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { User, Product, Order } from '../types/index';
 import { authService, productService, communityService, orderService } from '../services/api';
 import '../styles/Profile.css';
 import { MESSAGES } from '../constants';
-import { Order } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Footer from './Footer';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface Community {
   _id: string;
@@ -21,22 +21,26 @@ interface Community {
   createdAt: string;
 }
 
-type TabType = 'profile' | 'products' | 'communities' | 'orders';
+type TabType = 'profile' | 'products' | 'communities' | 'orders' | 'order-requests' | 'wallet' | 'cart';
 
 const Profile: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('profile');
+  const [activeTab, setActiveTab] = useState<TabType>(
+    (location.state as any)?.activeTab || 'profile'
+  );
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
+    phone: '',
     address: '',
     country: '',
     pincode: ''
@@ -50,6 +54,38 @@ const Profile: React.FC = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [productOrders, setProductOrders] = useState<Order[]>([]);
+  const [productOrdersLoading, setProductOrdersLoading] = useState(true);
+  const [productOrdersError, setProductOrdersError] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(() => {
+    const savedBalance = localStorage.getItem('walletBalance');
+    return savedBalance ? parseFloat(savedBalance) : 0;
+  });
+  const [addAmount, setAddAmount] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [cartItems, setCartItems] = useState<Array<{
+    product: Product;
+    quantity: number;
+  }>>(() => {
+    try {
+      const savedCart = localStorage.getItem('cart');
+      if (!savedCart) return [];
+      const parsedCart = JSON.parse(savedCart);
+      // Filter out any invalid cart items during initialization
+      return Array.isArray(parsedCart) ? parsedCart.filter((item: any) => 
+        item && 
+        item.product && 
+        item.product._id && 
+        item.product.name && 
+        typeof item.quantity === 'number'
+      ) : [];
+    } catch (error) {
+      console.error('Error parsing cart from localStorage:', error);
+      localStorage.removeItem('cart'); // Clear invalid cart data
+      return [];
+    }
+  });
 
   // List of countries for the dropdown
   const countries = [
@@ -95,6 +131,22 @@ const Profile: React.FC = () => {
     }
   };
 
+  const fetchProductOrders = async () => {
+    try {
+      setProductOrdersLoading(true);
+      const response = await orderService.getMyProductOrders();
+      if (response.success) {
+        setProductOrders(response.data);
+      } else {
+        setProductOrdersError(response.error || MESSAGES.ERRORS.GENERIC_ERROR);
+      }
+    } catch (err) {
+      setProductOrdersError(MESSAGES.ERRORS.GENERIC_ERROR);
+    } finally {
+      setProductOrdersLoading(false);
+    }
+  };
+
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
@@ -107,6 +159,7 @@ const Profile: React.FC = () => {
             ...prev,
             name: user.name || '',
             email: user.email || '',
+            phone: user.phone || '',
             address: user.address || '',
             country: user.country || '',
             pincode: user.pincode || ''
@@ -234,6 +287,7 @@ const Profile: React.FC = () => {
         name: formData.name,
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
+        phone: formData.phone,
         address: formData.address,
         country: formData.country,
         pincode: formData.pincode
@@ -249,6 +303,7 @@ const Profile: React.FC = () => {
           if (user) {
             user.name = profileResponse.user.name;
             user.email = profileResponse.user.email;
+            user.phone = profileResponse.user.phone;
             user.address = profileResponse.user.address;
             user.country = profileResponse.user.country;
             user.pincode = profileResponse.user.pincode;
@@ -322,8 +377,23 @@ const Profile: React.FC = () => {
       setIsDeleting(true);
       const response = await orderService.deleteOrder(orderId);
       if (response.success) {
+        // Find the order to get its total amount
+        const deletedOrder = orders.find(order => order._id === orderId);
+        if (deletedOrder) {
+          // Get current wallet balance
+          const currentBalance = parseFloat(localStorage.getItem('walletBalance') || '0');
+          // Add the order total back to the wallet
+          const newBalance = currentBalance + deletedOrder.total;
+          // Update wallet balance in localStorage
+          localStorage.setItem('walletBalance', newBalance.toString());
+          // Update the wallet balance state if we're on the wallet tab
+          if (activeTab === 'wallet') {
+            setWalletBalance(newBalance);
+          }
+        }
         setOrders(orders.filter(order => order._id !== orderId));
         setDeleteOrderId(null);
+        setSuccess('Order deleted successfully and amount credited back to wallet');
       } else {
         setOrdersError(response.error || MESSAGES.ERRORS.GENERIC_ERROR);
       }
@@ -331,6 +401,181 @@ const Profile: React.FC = () => {
       setOrdersError(MESSAGES.ERRORS.GENERIC_ERROR);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'order-requests') {
+      fetchProductOrders();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      // Load wallet balance from localStorage
+      const savedBalance = localStorage.getItem('walletBalance');
+      if (savedBalance) {
+        setWalletBalance(parseFloat(savedBalance));
+      }
+    }
+  }, [activeTab]);
+
+  const handleAddMoney = async () => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+      
+      // Validate amount
+      const amount = parseFloat(addAmount);
+      if (isNaN(amount) || amount <= 0) {
+        setError('Please enter a valid amount');
+        return;
+      }
+
+      // TODO: Integrate with payment gateway
+      // For now, just updating the UI and localStorage
+      setTimeout(() => {
+        const newBalance = walletBalance + amount;
+        setWalletBalance(newBalance);
+        localStorage.setItem('walletBalance', newBalance.toString());
+        setAddAmount('');
+        setSuccess('Money added successfully!');
+        setIsProcessing(false);
+      }, 1000);
+    } catch (err) {
+      setError('Failed to process payment. Please try again.');
+      setIsProcessing(false);
+    }
+  };
+
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (tabsContainerRef.current) {
+      const scrollAmount = 200; // Adjust this value to control scroll distance
+      const currentScroll = tabsContainerRef.current.scrollLeft;
+      const newScroll = direction === 'left' 
+        ? currentScroll - scrollAmount 
+        : currentScroll + scrollAmount;
+      
+      tabsContainerRef.current.scrollTo({
+        left: newScroll,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      // Filter out any invalid items before saving
+      const validCartItems = cartItems.filter(item => 
+        item && 
+        item.product && 
+        item.product._id && 
+        item.product.name && 
+        typeof item.quantity === 'number'
+      );
+      localStorage.setItem('cart', JSON.stringify(validCartItems));
+    } catch (error) {
+      console.error('Error saving cart to localStorage:', error);
+    }
+  }, [cartItems]);
+
+  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
+    if (!productId || newQuantity < 1) return;
+    setCartItems(prev => 
+      prev.filter(item => item && item.product && item.product._id).map(item => 
+        item.product._id === productId 
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
+  };
+
+  const handleRemoveFromCart = (productId: string) => {
+    if (!productId) return;
+    setCartItems(prev => prev.filter(item => 
+      item && 
+      item.product && 
+      item.product._id && 
+      item.product._id !== productId
+    ));
+  };
+
+  const calculateCartTotal = () => {
+    return cartItems
+      .filter(item => 
+        item && 
+        item.product && 
+        item.product._id && 
+        item.product.name && 
+        typeof item.quantity === 'number' && 
+        typeof item.product.regularPrice === 'number'
+      )
+      .reduce((total, item) => {
+        return total + (item.product.regularPrice * item.quantity);
+      }, 0);
+  };
+
+  const handleCheckout = async () => {
+    try {
+      // Check for mandatory user details
+      if (!user?.address) {
+        setError('Please add your pincode, address and phone no. before placing an order');
+        return;
+      }
+      if (!user?.phone) {
+        setError('Please add your pincode, address and phone no. before placing an order');
+        return;
+      }
+      if (!user?.pincode) {
+        setError('Please add your pincode, address and phone no. before placing an order');
+        return;
+      }
+
+      // Get wallet balance from localStorage
+      const savedBalance = localStorage.getItem('walletBalance');
+      const walletBalance = savedBalance ? parseFloat(savedBalance) : 0;
+      const totalAmount = calculateCartTotal();
+
+      // Check if wallet has sufficient balance
+      if (walletBalance < totalAmount) {
+        setError(`Insufficient wallet balance. Required: ₹${totalAmount.toFixed(2)}, Available: ₹${walletBalance.toFixed(2)}`);
+        return;
+      }
+
+      // Create order items from cart
+      const orderItems = cartItems.map(item => ({
+        product: item.product._id,
+        quantity: item.quantity,
+        price: item.product.regularPrice
+      }));
+
+      // Create the order
+      const response = await orderService.createDirectOrder(orderItems);
+
+      if (response.success) {
+        // Deduct amount from wallet
+        const newBalance = walletBalance - totalAmount;
+        localStorage.setItem('walletBalance', newBalance.toString());
+        
+        // Clear the cart
+        setCartItems([]);
+        localStorage.removeItem('cart');
+        
+        // Show success message
+        setSuccess('Order placed successfully!');
+        
+        // Navigate to orders tab
+        setActiveTab('orders');
+        
+        // Refresh orders list
+        fetchOrders();
+      } else {
+        setError(response.error || 'Failed to place order');
+      }
+    } catch (err) {
+      console.error('Error creating order:', err);
+      setError('An error occurred while placing your order');
     }
   };
 
@@ -352,10 +597,6 @@ const Profile: React.FC = () => {
         <div className="profile-container">
           <div className="profile-card">
             <div className="header-with-back">
-              <button className="back-button" onClick={() => navigate('/')}>
-                ← Back to Home
-              </button>
-              <h2 className="text-2xl font-bold">My Account</h2>
             </div>
 
             {error && <div className="error-message">{error}</div>}
@@ -374,32 +615,58 @@ const Profile: React.FC = () => {
               </div>
 
               {/* Tabs Navigation */}
-              <div className="tabs-container">
-                <div className="tabs">
-                  <button 
-                    className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('profile')}
-                  >
-                    Profile
-                  </button>
-                  <button 
-                    className={`tab ${activeTab === 'products' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('products')}
-                  >
-                    Products
-                  </button>
-                  <button 
-                    className={`tab ${activeTab === 'communities' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('communities')}
-                  >
-                    Communities
-                  </button>
-                  <button 
-                    className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('orders')}
-                  >
-                    Orders
-                  </button>
+              <div className="tabs-wrapper scrollable" ref={tabsContainerRef}>
+                <div className="scroll-indicator left" onClick={() => handleScroll('left')}>
+                  <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+                </div>
+                <div className="scroll-indicator right" onClick={() => handleScroll('right')}>
+                  <ChevronRightIcon className="h-5 w-5 text-gray-600" />
+                </div>
+                <div className="tabs-container">
+                  <div className="tabs">
+                    <button 
+                      className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('profile')}
+                    >
+                      Profile
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'products' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('products')}
+                    >
+                      Products
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'communities' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('communities')}
+                    >
+                      Communities
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('orders')}
+                    >
+                      My Orders
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'order-requests' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('order-requests')}
+                    >
+                      Order Requests
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'wallet' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('wallet')}
+                    >
+                      Wallet
+                    </button>
+                    <button 
+                      className={`tab ${activeTab === 'cart' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('cart')}
+                    >
+                      Cart
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -434,6 +701,20 @@ const Profile: React.FC = () => {
                           disabled={!isEditing}
                           required
                           className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="phone">Phone Number</label>
+                        <input
+                          type="tel"
+                          id="phone"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          disabled={!isEditing}
+                          className="form-input"
+                          placeholder="Enter your phone number"
                         />
                       </div>
 
@@ -578,37 +859,39 @@ const Profile: React.FC = () => {
                     {productsLoading ? (
                       <div className="loading">Loading products...</div>
                     ) : products.length > 0 ? (
-                      <div className="products-grid">
+                      <div className="products-list">
                         {products.map(product => (
-                          <div key={product._id} className="product-card">
-                            <div className="product-header">
+                          <div 
+                            key={product._id} 
+                            className="product-card"
+                            onClick={() => {
+                              console.log('Navigating to products with ID:', product.productId);
+                              navigate('/products', { 
+                                state: { selectedProduct: product.productId || '' }
+                              });
+                            }}
+                          >
+                            <div className="product-info">
                               <h4>{product.name}</h4>
-                              <button 
-                                className="delete-button"
-                                onClick={() => handleDeleteProduct(product._id)}
-                                disabled={productsLoading}
-                                title="Delete Product"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            <p className="product-description">{product.description}</p>
-                            <div className="product-details">
-                              <div className="price-info">
+                              <p className="product-id">ID: <span className="font-mono">{product.productId}</span></p>
+                              <p>{product.description}</p>
+                              <div className="product-price">
                                 <span className="regular-price">₹{product.regularPrice}</span>
                                 <span className="bulk-price">₹{product.bulkPrice}</span>
+                                <span className="min-order">Min: {product.minOrderQuantity}</span>
                               </div>
-                              <div className="quantity-info">
-                                <span>Min. Order: {product.minOrderQuantity} units</span>
-                              </div>
-                              {product.category && (
-                                <div className="category-info">
-                                  Category: {product.category}
-                                </div>
-                              )}
                             </div>
+                            <button 
+                              className="delete-button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProduct(product._id);
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -652,15 +935,6 @@ const Profile: React.FC = () => {
                                   className="view-button"
                                 >
                                   View
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteCommunity(community._id)}
-                                  className="delete-button"
-                                  title="Delete Community"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
                                 </button>
                               </div>
                             </div>
@@ -755,6 +1029,40 @@ const Profile: React.FC = () => {
                                 <p className="text-sm text-gray-500">
                                   {new Date(order.createdAt).toLocaleDateString()}
                                 </p>
+                                {order.user ? (
+                                  <>
+                                    <p className="text-sm text-gray-600">
+                                      {order.user.name}
+                                    </p>
+                                    <div className="mt-2 space-y-1">
+                                      <p className="text-sm text-gray-600">
+                                        {order.user.email}
+                                      </p>
+                                      {order.user.phone && (
+                                        <p className="text-sm text-gray-600">
+                                          Phone: {order.user.phone}
+                                        </p>
+                                      )}
+                                      {order.user.address && (
+                                        <p className="text-sm text-gray-600">
+                                          Address: {order.user.address}
+                                        </p>
+                                      )}
+                                      {order.user.country && (
+                                        <p className="text-sm text-gray-600">
+                                          Country: {order.user.country}
+                                        </p>
+                                      )}
+                                      {order.user.pincode && (
+                                        <p className="text-sm text-gray-600">
+                                          Pincode: {order.user.pincode}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-gray-600">Customer information not available</p>
+                                )}
                               </div>
                               <div className="text-right">
                                 <p className="font-semibold text-lg">₹{order.total.toFixed(2)}</p>
@@ -782,9 +1090,9 @@ const Profile: React.FC = () => {
                             <div className="order-items">
                               <h4 className="font-medium mb-2">Items:</h4>
                               <ul className="space-y-2">
-                                {order.items.map((item) => (
+                                {order.items.map((item: { _id: string; product: Product; quantity: number; price: number }) => (
                                   <li key={item._id} className="order-item">
-                                    <span>{item.product.name} x {item.quantity}</span>
+                                    <span>{item.product?.name || 'Product not available'} x {item.quantity}</span>
                                     <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                                   </li>
                                 ))}
@@ -792,6 +1100,229 @@ const Profile: React.FC = () => {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Order Requests Tab */}
+                {activeTab === 'order-requests' && (
+                  <div className="orders-tab">
+                    <h3 className="text-xl font-bold mb-4">Order Requests</h3>
+                    {productOrdersLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                        <p className="mt-2 text-gray-600">Loading order requests...</p>
+                      </div>
+                    ) : productOrdersError ? (
+                      <div className="text-red-500 p-4 bg-red-50 rounded-lg">{productOrdersError}</div>
+                    ) : productOrders.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p className="text-lg">No order requests found</p>
+                        <p className="mt-2">When users place orders on your products, they will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {productOrders.map((order) => (
+                          <div key={order._id} className="order-card">
+                            <div className="order-header">
+                              <div>
+                                <h3 className="font-semibold text-lg">Order #{order.orderId}</h3>
+                                <p className="text-sm text-gray-500">
+                                  {new Date(order.createdAt).toLocaleDateString()}
+                                </p>
+                                {order.user ? (
+                                  <>
+                                    <p className="text-sm text-gray-600">
+                                      {order.user.name}
+                                    </p>
+                                    <div className="mt-2 space-y-1">
+                                      <p className="text-sm text-gray-600">
+                                        {order.user.email}
+                                      </p>
+                                      {order.user.phone && (
+                                        <p className="text-sm text-gray-600">
+                                          Phone: {order.user.phone}
+                                        </p>
+                                      )}
+                                      {order.user.address && (
+                                        <p className="text-sm text-gray-600">
+                                          Address: {order.user.address}
+                                        </p>
+                                      )}
+                                      {order.user.country && (
+                                        <p className="text-sm text-gray-600">
+                                          Country: {order.user.country}
+                                        </p>
+                                      )}
+                                      {order.user.pincode && (
+                                        <p className="text-sm text-gray-600">
+                                          Pincode: {order.user.pincode}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-gray-600">Customer information not available</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-lg">₹{order.items
+                                  .filter(item => products.some(product => product._id === item.product._id))
+                                  .reduce((sum, item) => sum + (item.price * item.quantity), 0)
+                                  .toFixed(2)}</p>
+                                <p className={`text-sm font-medium ${
+                                  order.status === 'completed' ? 'text-green-500' : 
+                                  order.status === 'pending' ? 'text-yellow-500' : 
+                                  'text-red-500'
+                                }`}>
+                                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="order-items">
+                              <h4 className="font-medium mb-2">Items:</h4>
+                              <ul className="space-y-2">
+                                {order.items
+                                  .filter(item => products.some(product => product._id === item.product._id))
+                                  .map((item: { _id: string; product: Product; quantity: number; price: number }) => (
+                                    <li key={item._id} className="order-item">
+                                      <span>{item.product?.name || 'Product not available'} x {item.quantity}</span>
+                                      <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Wallet Tab */}
+                {activeTab === 'wallet' && (
+                  <div className="wallet-tab">
+                    <div className="wallet-container">
+                      <div className="wallet-balance">
+                        <h3>Wallet Balance</h3>
+                        <div className="balance-amount">₹{walletBalance.toFixed(2)}</div>
+                      </div>
+                      
+                      <div className="add-money-section">
+                        <h4>Add Money to Wallet</h4>
+                        <div className="amount-input">
+                          <input
+                            type="number"
+                            value={addAmount}
+                            onChange={(e) => setAddAmount(e.target.value)}
+                            placeholder="Enter amount"
+                            className="form-input"
+                            min="1"
+                            disabled={isProcessing}
+                          />
+                          <button
+                            onClick={handleAddMoney}
+                            className="add-money-button"
+                            disabled={isProcessing || !addAmount}
+                          >
+                            {isProcessing ? 'Processing...' : 'Add Money'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="wallet-info">
+                        <h4>How it works</h4>
+                        <ul>
+                          <li>Add money to your wallet for faster checkout</li>
+                          <li>Wallet balance can be used for all purchases</li>
+                          <li>Secure and convenient payment method</li>
+                          <li>Track your wallet transactions easily</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cart Tab */}
+                {activeTab === 'cart' && (
+                  <div className="cart-tab">
+                    <div className="section-header">
+                      <h3>Shopping Cart</h3>
+                      {cartItems.length > 0 && (
+                        <button 
+                          className="checkout-button"
+                          onClick={handleCheckout}
+                        >
+                          Buy Now
+                        </button>
+                      )}
+                    </div>
+                    {cartItems.length === 0 ? (
+                      <div className="empty-cart">
+                        <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <p className="text-lg text-gray-500">Your cart is empty</p>
+                        <button 
+                          className="browse-products-button"
+                          onClick={() => navigate('/products')}
+                        >
+                          Browse Products
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="cart-items">
+                        {cartItems.filter(item => item && item.product).map(item => (
+                          <div key={item.product._id} className="cart-item">
+                            <div className="cart-item-info">
+                              <h4>{item.product.name}</h4>
+                              <p className="product-id">ID: <span className="font-mono">{item.product.productId}</span></p>
+                              <div className="price-quantity">
+                                <span className="price">₹{item.product.regularPrice}</span>
+                                <div className="quantity-controls">
+                                  <button 
+                                    onClick={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
+                                    className="quantity-button"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="quantity">{item.quantity}</span>
+                                  <button 
+                                    onClick={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
+                                    className="quantity-button"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => handleRemoveFromCart(item.product._id)}
+                              className="remove-button"
+                              title="Remove from cart"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                        <div className="cart-summary">
+                          <div className="summary-row">
+                            <span>Subtotal:</span>
+                            <span>₹{calculateCartTotal().toFixed(2)}</span>
+                          </div>
+                          <div className="summary-row">
+                            <span>Shipping:</span>
+                            <span>Free</span>
+                          </div>
+                          <div className="summary-row total">
+                            <span>Total:</span>
+                            <span>₹{calculateCartTotal().toFixed(2)}</span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

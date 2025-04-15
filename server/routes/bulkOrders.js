@@ -8,6 +8,20 @@ const auth = require('../middleware/auth');
 // Create a bulk order
 router.post('/', auth, async (req, res) => {
     try {
+        // Check for mandatory user details
+        const missingFields = [];
+        if (!req.user.address) missingFields.push('address');
+        if (!req.user.phone) missingFields.push('phone number');
+        if (!req.user.pincode) missingFields.push('pincode');
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Please update your profile with your ${missingFields.join(', ')} before placing an order. Go to Profile > Edit Profile to add these details.`,
+                error: `Please update your profile with your ${missingFields.join(', ')} before placing an order. Go to Profile > Edit Profile to add these details.`
+            });
+        }
+
         let products;
         
         // Handle both single product and array of products
@@ -75,38 +89,37 @@ router.post('/', auth, async (req, res) => {
             bulkOrder: bulkOrder._id,
             items: products.map(p => {
                 const product = productDocs.find(doc => doc._id.toString() === p.productId);
-                // Calculate price based on total community quantity
-                const totalQuantity = 10; // This should be the total community quantity
-                let price = product.bulkPrice;
+                const quantity = p.initialQuantity || 1;
+                // Calculate total community quantity for this product
+                const communityQuantity = bulkOrder.products.find(bp => bp.product.toString() === p.productId)?.currentQuantity || quantity;
                 
-                // Apply tier-based pricing based on total community quantity
-                if (totalQuantity >= product.minOrderQuantity * 3) {
-                    price = product.bulkPrice * 0.8; // 20% discount
-                } else if (totalQuantity >= product.minOrderQuantity * 2) {
-                    price = product.bulkPrice * 0.9; // 10% discount
+                // Calculate price based on community quantity
+                let price = product.regularPrice;
+                if (communityQuantity >= product.minOrderQuantity) {
+                    price = product.bulkPrice;
                 }
                 
                 return {
                     product: p.productId,
-                    quantity: p.initialQuantity || 1,
-                    price: price,
+                    quantity,
+                    price,
                     pricingTier: 'bulk'
                 };
             }),
             status: 'pending',
             total: products.reduce((sum, p) => {
                 const product = productDocs.find(doc => doc._id.toString() === p.productId);
-                const totalQuantity = 10; // This should be the total community quantity
-                let price = product.bulkPrice;
+                const quantity = p.initialQuantity || 1;
+                // Calculate total community quantity for this product
+                const communityQuantity = bulkOrder.products.find(bp => bp.product.toString() === p.productId)?.currentQuantity || quantity;
                 
-                // Apply tier-based pricing based on total community quantity
-                if (totalQuantity >= product.minOrderQuantity * 3) {
-                    price = product.bulkPrice * 0.8; // 20% discount
-                } else if (totalQuantity >= product.minOrderQuantity * 2) {
-                    price = product.bulkPrice * 0.9; // 10% discount
+                // Calculate price based on community quantity
+                let price = product.regularPrice;
+                if (communityQuantity >= product.minOrderQuantity) {
+                    price = product.bulkPrice;
                 }
                 
-                return sum + ((p.initialQuantity || 1) * price);
+                return sum + (quantity * price);
             }, 0)
         });
         

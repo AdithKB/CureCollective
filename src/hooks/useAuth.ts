@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User } from '../types';
+import { User } from '../types/index';
 import { authService } from '../services/api';
 import { MESSAGES } from '../constants';
 

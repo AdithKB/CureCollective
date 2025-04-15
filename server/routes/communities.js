@@ -3,13 +3,39 @@ const router = express.Router();
 const Community = require('../models/Community');
 const auth = require('../middleware/auth');
 const Product = require('../models/Product');
+const JoinRequest = require('../models/JoinRequest');
+
+// Function to generate unique community ID
+const generateCommunityId = async (name) => {
+  const prefix = name.substring(0, 3).toUpperCase();
+  const date = new Date();
+  const dateStr = `${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+  
+  let isUnique = false;
+  let communityId;
+  
+  while (!isUnique) {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    communityId = `${prefix}${dateStr}${randomNum}`;
+    
+    // Check if ID already exists
+    const existingCommunity = await Community.findOne({ communityId });
+    if (!existingCommunity) {
+      isUnique = true;
+    }
+  }
+  
+  return communityId;
+};
 
 // Create a new community
 router.post('/', auth, async (req, res) => {
     try {
+        const communityId = await generateCommunityId(req.body.name);
         const { name, description, healthConditions, relatedMedications, locations, privacy, guidelines } = req.body;
         
         const community = new Community({
+            communityId,
             name,
             description,
             healthConditions,
@@ -92,15 +118,41 @@ router.get('/:id', async (req, res) => {
 // Get community by slug
 router.get('/slug/:slug', async (req, res) => {
     try {
-        const communities = await Community.find()
-            .populate('creator', 'name')
-            .populate('members', 'name')
+        console.log('Looking for community with slug:', req.params.slug);
+        
+        // First try to find by ID if the slug looks like an ID
+        if (req.params.slug.match(/^[0-9a-fA-F]{24}$/)) {
+            console.log('Slug looks like an ID, trying to find by ID');
+            const communityById = await Community.findById(req.params.slug)
+                .populate('creator', 'name _id')
+                .populate('members', 'name _id')
+                .populate('relatedMedications', 'name')
+                .populate('linkedProducts.product', 'name price bulkPrice minOrderQuantity regularPrice');
+            
+            if (communityById) {
+                console.log('Found community by ID:', communityById.name);
+                return res.json({
+                    success: true,
+                    data: communityById
+                });
+            }
+        }
+        
+        // Convert the slug to a regex pattern for case-insensitive name matching
+        const namePattern = new RegExp(req.params.slug.split('-').join(' '), 'i');
+        console.log('Using name pattern:', namePattern);
+        
+        // First try to find all communities to see what's available
+        const allCommunities = await Community.find().select('name');
+        console.log('All communities:', allCommunities.map(c => c.name));
+        
+        const community = await Community.findOne({ name: namePattern })
+            .populate('creator', 'name _id')
+            .populate('members', 'name _id')
             .populate('relatedMedications', 'name')
             .populate('linkedProducts.product', 'name price bulkPrice minOrderQuantity regularPrice');
         
-        const community = communities.find(c => 
-            c.name.toLowerCase().replace(/\s+/g, '-') === req.params.slug
-        );
+        console.log('Found community:', community ? community.name : 'none');
         
         if (!community) {
             return res.status(404).json({
@@ -143,12 +195,44 @@ router.post('/:id/join', auth, async (req, res) => {
             });
         }
         
+        // For private communities, create a join request instead of adding directly
+        if (community.privacy === 'private') {
+            // Check if there's already a pending request
+            const existingRequest = await JoinRequest.findOne({
+                user: req.user._id,
+                community: community._id,
+                status: 'pending'
+            });
+            
+            if (existingRequest) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'You already have a pending join request for this community'
+                });
+            }
+            
+            // Create new join request
+            const joinRequest = new JoinRequest({
+                user: req.user._id,
+                community: community._id
+            });
+            
+            await joinRequest.save();
+            
+            return res.json({
+                success: true,
+                message: 'Join request sent successfully',
+                data: joinRequest
+            });
+        }
+        
+        // For public communities, add user directly
         community.members.push(req.user._id);
         await community.save();
         
         res.json({
             success: true,
-            message: 'Successfully joined community',
+            message: 'Successfully joined the community',
             community
         });
     } catch (error) {
@@ -268,19 +352,25 @@ router.put('/:id', auth, async (req, res) => {
         
         const { name, description, privacy, guidelines, locations, relatedMedications } = req.body;
         
-        community.name = name;
-        community.description = description;
-        community.privacy = privacy;
-        community.guidelines = guidelines;
-        community.locations = locations;
-        community.relatedMedications = relatedMedications;
-        
-        await community.save();
+        // Update the community fields
+        const updatedCommunity = await Community.findByIdAndUpdate(
+            req.params.id,
+            {
+                name,
+                description,
+                privacy,
+                guidelines,
+                locations,
+                relatedMedications,
+                $setOnInsert: { communityId: community.communityId } // Preserve the existing communityId
+            },
+            { new: true, runValidators: true }
+        );
         
         res.json({
             success: true,
             message: 'Community updated successfully',
-            community
+            community: updatedCommunity
         });
     } catch (error) {
         console.error('Error updating community:', error);
@@ -363,6 +453,131 @@ router.delete('/:communityId/products/:productId', auth, async (req, res) => {
   } catch (error) {
     console.error('Error unlinking product from community:', error);
     res.status(500).json({ error: 'Failed to unlink product from community' });
+  }
+});
+
+// Cancel a join request
+router.delete('/:id/join-request', auth, async (req, res) => {
+    try {
+        const community = await Community.findById(req.params.id);
+        
+        if (!community) {
+            return res.status(404).json({
+                success: false,
+                message: 'Community not found'
+            });
+        }
+        
+        // Find and delete the pending join request
+        const joinRequest = await JoinRequest.findOne({
+            user: req.user._id,
+            community: community._id,
+            status: 'pending'
+        });
+        
+        if (!joinRequest) {
+            return res.status(404).json({
+                success: false,
+                message: 'No pending join request found'
+            });
+        }
+        
+        await joinRequest.deleteOne();
+        
+        res.json({
+            success: true,
+            message: 'Join request cancelled successfully'
+        });
+    } catch (error) {
+        console.error('Error cancelling join request:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Server error cancelling join request',
+            error: error.message
+        });
+    }
+});
+
+// Get user's own join request for a community
+router.get('/:id/join-request', auth, async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+    
+    // Find the user's join request
+    const joinRequest = await JoinRequest.findOne({
+      user: req.user._id,
+      community: community._id,
+      status: 'pending'
+    });
+    
+    res.json({
+      success: true,
+      data: joinRequest
+    });
+  } catch (error) {
+    console.error('Error fetching join request:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error fetching join request',
+      error: error.message
+    });
+  }
+});
+
+// Remove a member from a community
+router.delete('/:communityId/members/:memberId', auth, async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.communityId);
+    
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+    
+    // Check if user is the creator
+    if (community.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the community creator can remove members'
+      });
+    }
+    
+    // Check if member exists
+    if (!community.members.includes(req.params.memberId)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Member not found in this community'
+      });
+    }
+    
+    // Remove member from the community
+    community.members = community.members.filter(
+      member => member.toString() !== req.params.memberId
+    );
+    
+    await community.save();
+    
+    res.json({
+      success: true,
+      message: 'Member removed successfully',
+      community
+    });
+  } catch (error) {
+    console.error('Error removing member:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error removing member',
+      error: error.message
+    });
   }
 });
 

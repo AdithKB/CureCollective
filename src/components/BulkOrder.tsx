@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { productService, orderService, communityService } from '../services/api';
-import { Product, User, PricingTier, PricingTierData, Order, BulkOrderProduct, Community } from '../types';
+import { Product, User, PricingTier, PricingTierData, Order, BulkOrderProduct, Community } from '../types/index';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Footer from './Footer';
@@ -120,7 +120,7 @@ const BulkOrder: React.FC = () => {
               setProducts(productsResponse.data);
               
               // Register products with the bulk order manager
-              productsResponse.data.forEach(product => {
+              productsResponse.data.forEach((product: Product) => {
                 bulkOrderManager.addProduct(product);
               });
               
@@ -289,6 +289,12 @@ const BulkOrder: React.FC = () => {
       setError('You must be logged in to place an order');
       return;
     }
+
+    // Check for mandatory user details
+    if (!authUser.address || !authUser.phone || !authUser.pincode) {
+      setError('Please add your pincode, address & phone no. before placing an order');
+      return;
+    }
     
     // Check if any items have a quantity greater than 0
     const hasItems = orderItems.some(item => item.quantity > 0);
@@ -304,6 +310,23 @@ const BulkOrder: React.FC = () => {
       // Filter out items with quantity > 0
       const itemsToOrder = orderItems.filter(item => item.quantity > 0);
       
+      // Calculate total order amount
+      const totalAmount = itemsToOrder.reduce((sum, item) => {
+        const batchStatus = bulkOrderManager.getBatchStatus(item.productId);
+        const price = batchStatus ? batchStatus.currentPrice : item.price;
+        return sum + (price * item.quantity);
+      }, 0);
+
+      // Get wallet balance from localStorage
+      const savedBalance = localStorage.getItem('walletBalance');
+      const walletBalance = savedBalance ? parseFloat(savedBalance) : 0;
+
+      // Check if wallet has sufficient balance
+      if (walletBalance < totalAmount) {
+        setError(`Insufficient wallet balance. Required: ₹${totalAmount.toFixed(2)}, Available: ₹${walletBalance.toFixed(2)}`);
+        return;
+      }
+      
       // Create the order using the bulk order manager
       const orderItemsForApi = itemsToOrder.map(item => {
         // Get the batch status for this product
@@ -317,7 +340,6 @@ const BulkOrder: React.FC = () => {
           product: item.productId,
           quantity: item.quantity,
           price: batchStatus ? batchStatus.currentPrice : item.price,
-          pricingTier: 'bulk' as PricingTier,
           additionalDiscount: additionalDiscount
         };
       });
@@ -343,17 +365,28 @@ const BulkOrder: React.FC = () => {
       }
       
       if (response.success) {
+        // Order was successful
+        const newBalance = walletBalance - totalAmount;
+        localStorage.setItem('walletBalance', newBalance.toString());
+        
         // Show success message
         alert('Order placed successfully!');
         
-        // Navigate to the profile page
-        navigate('/profile');
+        // Navigate to the profile page with orders tab active
+        navigate('/profile', { state: { activeTab: 'orders' } });
       } else {
-        setError(response.error || 'Failed to place order');
+        // Set the error message from the response
+        setError(response.error || 'An error occurred while submitting your order');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting order:', err);
-      setError('An error occurred while submitting your order');
+      // If there's a response from the server, use its message
+      if (err.response?.data) {
+        const serverError = err.response.data;
+        setError(serverError.error || serverError.message || 'An error occurred while submitting your order');
+      } else {
+        setError(err.message || 'An error occurred while submitting your order');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -362,6 +395,36 @@ const BulkOrder: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleProductSelect = (product: Product) => {
+    const existingItem = orderItems.find(item => item.productId === product._id);
+    if (existingItem) {
+      setOrderItems(orderItems.map(item =>
+        item.productId === product._id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ));
+    } else {
+      const pricingTiers: PricingTierData[] = [
+        { minQuantity: product.minOrderQuantity, pricePerUnit: product.bulkPrice },
+        { minQuantity: product.minOrderQuantity * 2, pricePerUnit: product.bulkPrice * 0.9 },
+        { minQuantity: product.minOrderQuantity * 3, pricePerUnit: product.bulkPrice * 0.8 }
+      ];
+
+      setOrderItems([...orderItems, {
+        productId: product._id,
+        quantity: 1,
+        price: product.bulkPrice,
+        name: product.name,
+        minOrderQuantity: product.minOrderQuantity,
+        pricingTiers,
+        currentTier: pricingTiers[0],
+        nextTier: pricingTiers[1],
+        totalQuantity: 0,
+        regularPrice: product.regularPrice
+      }]);
+    }
   };
 
   if (loading) {
@@ -390,7 +453,16 @@ const BulkOrder: React.FC = () => {
           )}
 
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Product Details</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Product Details</h2>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Wallet Balance</p>
+                <p className="text-lg font-semibold text-[#4a6fa5]">
+                  ₹{localStorage.getItem('walletBalance') ? parseFloat(localStorage.getItem('walletBalance')!).toFixed(2) : '0.00'}
+                </p>
+              </div>
+            </div>
+
             <div className="space-y-4">
               {orderItems.map(item => (
                 <div key={item.productId} className="flex flex-col p-4 border rounded-lg">
@@ -523,6 +595,18 @@ const BulkOrder: React.FC = () => {
               >
                 Cancel
               </button>
+              <div className="flex flex-col items-end mr-4">
+                <div className="text-lg font-semibold">
+                  Total Order Amount: ₹{orderItems.reduce((sum, item) => {
+                    // Calculate total based on whether quantity meets minimum order quantity
+                    const itemTotal = item.quantity * (item.quantity >= item.minOrderQuantity ? item.price : item.regularPrice);
+                    return sum + itemTotal;
+                  }, 0).toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {orderItems.filter(item => item.quantity > 0).length} items
+                </div>
+              </div>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}

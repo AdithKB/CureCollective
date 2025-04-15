@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productService } from '../services/api';
 import { MESSAGES } from '../constants';
-import { User } from '../types';
+import { User } from '../types/index';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Footer from './Footer';

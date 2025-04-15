@@ -1,4 +1,4 @@
-import { Product, PricingTier } from '../types';
+import { Product, PricingTier } from '../types/index';
 
 // Product with tiered pricing
 export class ProductWithTiers {
@@ -100,7 +100,7 @@ export class Batch {
     const totalQuantity = this.getTotalQuantity();
     this.finalPricePerUnit = product.getPriceForQuantity(totalQuantity);
 
-    // Calculate contribution percentages and apply additional discounts
+    // Calculate contribution percentages
     if (totalQuantity > 0) {
       // Sort orders by quantity (descending)
       this.orders.sort((a, b) => b.quantity - a.quantity);
@@ -115,33 +115,12 @@ export class Batch {
         this.maxContributionPercentage = this.orders[0].contributionPercentage;
       }
       
-      // Apply additional discounts based on contribution
-      // The person with the highest contribution gets the most discount
+      // Set final price without additional discounts
       this.orders.forEach(order => {
-        if (order.contributionPercentage !== null) {
-          // Calculate additional discount based on contribution percentage
-          // Max discount is 10% for the highest contributor
-          const maxAdditionalDiscount = 0.10;
-          const discountFactor = this.maxContributionPercentage > 0 
-            ? order.contributionPercentage / this.maxContributionPercentage 
-            : 0;
-          order.additionalDiscount = maxAdditionalDiscount * discountFactor;
-          
-          // Apply the additional discount to the final price
-          if (this.finalPricePerUnit !== null) {
-            const discountedPrice = this.finalPricePerUnit * (1 - order.additionalDiscount);
-            order.finalPrice = discountedPrice * order.quantity;
-          } else {
-            // Fallback if finalPricePerUnit is null
-            order.finalPrice = 0;
-          }
+        if (this.finalPricePerUnit !== null) {
+          order.finalPrice = this.finalPricePerUnit * order.quantity;
         } else {
-          // Fallback if contribution percentage is not set
-          if (this.finalPricePerUnit !== null) {
-            order.finalPrice = this.finalPricePerUnit * order.quantity;
-          } else {
-            order.finalPrice = 0;
-          }
+          order.finalPrice = 0;
         }
       });
     } else {

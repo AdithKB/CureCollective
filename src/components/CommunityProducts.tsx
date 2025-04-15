@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { communityService, productService } from '../services/api';
-import { Product } from '../types';
+import { Product } from '../types/index';
 import '../styles/CommunityProducts.css';
 
 interface LinkedProduct {
@@ -109,6 +109,9 @@ const CommunityProducts: React.FC = () => {
               {linkedProducts.map(linkedProduct => (
                 <div key={linkedProduct.product._id} className="product-card">
                   <h4>{linkedProduct.product.name}</h4>
+                  <div className="text-xs font-bold text-[#4a6fa5] font-mono bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                    {linkedProduct.product.productId || 'No ID'}
+                  </div>
                   <p>{linkedProduct.product.description}</p>
                   <div className="price-details">
                     <div className="regular-price">
@@ -141,6 +144,9 @@ const CommunityProducts: React.FC = () => {
               {filteredProducts.map(product => (
                 <div key={product._id} className="product-card">
                   <h4>{product.name}</h4>
+                  <div className="text-xs font-bold text-[#4a6fa5] font-mono bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                    {product.productId || 'No ID'}
+                  </div>
                   <p>{product.description}</p>
                   <div className="price-details">
                     <div className="regular-price">

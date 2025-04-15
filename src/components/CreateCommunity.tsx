@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { communityService, productService } from '../services/api';
 import { locations } from '../data/locations';
 import { healthConditions } from '../data/healthConditions';
-import { Product, User } from '../types';
+import { Product, User } from '../types/index';
 import '../styles/CreateCommunity.css';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';

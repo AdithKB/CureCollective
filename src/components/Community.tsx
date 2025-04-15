@@ -4,50 +4,22 @@ import { communityService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/Community.css';
 import { productService } from '../services/api';
+import { Community as CommunityType, Product } from '../types/index';
 import Header from './Header';
 import Footer from './Footer';
-
-interface Community {
-  _id: string;
-  name: string;
-  description: string;
-  healthConditions: string[];
-  relatedMedications: (string | { _id: string; name: string })[];
-  privacy: string;
-  locations: string[];
-  guidelines?: string;
-  createdAt: string;
-  members?: {
-    _id: string;
-    name: string;
-  }[];
-  posts?: {
-    _id: string;
-    content: string;
-    author: {
-      _id: string;
-      name: string;
-    };
-    createdAt: string;
-  }[];
-}
-
-interface Product {
-  _id: string;
-  name: string;
-}
 
 const Community: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [community, setCommunity] = useState<Community | null>(null);
+  const { user, logout } = useAuth();
+  const [community, setCommunity] = useState<CommunityType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newPost, setNewPost] = useState('');
   const [isMember, setIsMember] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<{
     name: string;
@@ -56,13 +28,15 @@ const Community: React.FC = () => {
     privacy: 'public' | 'private';
     relatedMedications: string[];
     locations: string[];
+    communityId: string;
   }>({
     name: '',
     description: '',
     guidelines: '',
     privacy: 'public',
     relatedMedications: [],
-    locations: []
+    locations: [],
+    communityId: ''
   });
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,47 +58,49 @@ const Community: React.FC = () => {
   const loadCommunity = async () => {
     try {
       setLoading(true);
-      const response = await communityService.getAll();
+      setError(null);
+      const response = await communityService.getBySlug(slug!);
+      
       if (response.success && response.data) {
-        const communityData = response.data.find(
-          (c: Community) => c.name.toLowerCase().replace(/\s+/g, '-') === slug
-        );
+        const communityData = response.data;
+        setCommunity(communityData);
         
-        if (communityData) {
-          // Fetch product details for related medications
-          const productsResponse = await productService.getAll();
-          if (productsResponse.success && productsResponse.data) {
-            const productsMap = new Map(productsResponse.data.map((p: Product) => [p._id, p]));
-            const mappedRelatedMedications = communityData.relatedMedications.map((medication: string | { _id: string; name: string }) => {
-              const id = typeof medication === 'string' ? medication : medication._id;
-              const product = productsMap.get(id);
-              return product ? { _id: id, name: product.name } : id;
-            });
-            communityData.relatedMedications = mappedRelatedMedications;
-            setProducts(productsResponse.data);
+        // Check if current user is a member
+        const isUserMember = communityData.members?.some(
+          (member: any) => member._id === user?._id
+        );
+        setIsMember(isUserMember);
+        
+        // Check if current user is the creator
+        const isUserCreator = communityData.creator._id === user?._id;
+        setIsCreator(isUserCreator);
+        
+        // For private communities, check if user has a pending request
+        if (communityData.privacy === 'private' && !isUserMember && !isUserCreator) {
+          try {
+            const requestsResponse = await communityService.getJoinRequests(communityData._id);
+            if (requestsResponse.success) {
+              const hasRequest = requestsResponse.data.some(
+                (request: any) => request.user._id === user?._id && request.status === 'pending'
+              );
+              setHasPendingRequest(hasRequest);
+            }
+          } catch (err) {
+            // If we get a permission error, try to get user's own join request
+            try {
+              const userRequestResponse = await communityService.getUserJoinRequest(communityData._id);
+              if (userRequestResponse.success && userRequestResponse.data) {
+                setHasPendingRequest(userRequestResponse.data.status === 'pending');
+              } else {
+                setHasPendingRequest(false);
+              }
+            } catch (err) {
+              setHasPendingRequest(false);
+            }
           }
-          
-          setCommunity(communityData);
-          setEditForm({
-            name: communityData.name,
-            description: communityData.description,
-            guidelines: communityData.guidelines || '',
-            privacy: communityData.privacy,
-            relatedMedications: communityData.relatedMedications,
-            locations: communityData.locations
-          });
-          // Check if current user is a member
-          const isUserMember = communityData.members?.some(
-            (member: { _id: string }) => member._id === user?._id
-          );
-          setIsMember(isUserMember);
-          // Check if current user is the creator
-          setIsCreator(communityData.creator?._id === user?._id);
-        } else {
-          setError('Community not found');
         }
       } else {
-        setError('Failed to load community');
+        setError('Community not found');
       }
     } catch (err) {
       console.error('Error loading community:', err);
@@ -171,13 +147,14 @@ const Community: React.FC = () => {
       // Ensure relatedMedications are strings (product IDs)
       const formData = {
         ...editForm,
+        communityId: community!.communityId,
         relatedMedications: editForm.relatedMedications.map((med: string | { _id: string; name: string }) => {
           if (typeof med === 'string') {
             return med;
           }
           return med._id;
         }),
-        locations: editForm.locations // Ensure locations are included in the form data
+        locations: editForm.locations
       };
       
       const response = await communityService.update(community!._id, formData);
@@ -196,15 +173,10 @@ const Community: React.FC = () => {
           guidelines: formData.guidelines,
           privacy: formData.privacy,
           relatedMedications: updatedRelatedMedications,
-          locations: formData.locations // Ensure locations are updated in the state
+          locations: formData.locations,
+          communityId: formData.communityId
         }));
 
-        // Update the edit form with the new data
-        setEditForm(prev => ({
-          ...prev,
-          locations: formData.locations // Ensure locations are updated in the edit form
-        }));
-        
         setIsEditing(false);
         setSuccess('Community updated successfully');
         setError('');
@@ -219,16 +191,41 @@ const Community: React.FC = () => {
 
   const handleJoinCommunity = async () => {
     try {
+      if (hasPendingRequest) {
+        setError('You already have a pending join request for this community');
+        return;
+      }
+
       const response = await communityService.join(community!._id);
       if (response.success) {
-        setIsMember(true);
-        setSuccess('Successfully joined the community!');
+        if (community!.privacy === 'private') {
+          setHasPendingRequest(true);
+          setSuccess('Join request sent successfully!');
+        } else {
+          setIsMember(true);
+          setSuccess('Successfully joined the community!');
+        }
         await loadCommunity();
       } else {
-        setError(response.error || 'Failed to join community');
+        setError(response.message || response.error || 'Failed to join community');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to join community');
+    }
+  };
+
+  const handleCancelJoinRequest = async () => {
+    try {
+      const response = await communityService.cancelJoinRequest(community!._id);
+      if (response.success) {
+        setHasPendingRequest(false);
+        setSuccess('Join request cancelled successfully');
+        await loadCommunity();
+      } else {
+        setError(response.error || 'Failed to cancel join request');
       }
     } catch (err) {
-      setError('Failed to join community');
+      setError('Failed to cancel join request');
     }
   };
 
@@ -278,6 +275,23 @@ const Community: React.FC = () => {
     }
   };
 
+  const handleEditClick = () => {
+    if (community) {
+      setEditForm({
+        name: community.name,
+        description: community.description,
+        guidelines: community.guidelines || '',
+        privacy: community.privacy,
+        relatedMedications: community.relatedMedications.map((med: any) => 
+          typeof med === 'string' ? med : med._id
+        ),
+        locations: community.locations || [],
+        communityId: community.communityId
+      });
+    }
+    setIsEditing(true);
+  };
+
   if (loading) {
     return (
       <div className="community-container">
@@ -304,7 +318,13 @@ const Community: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f5f7fa]">
-      <Header user={user} onLogout={() => navigate('/')} />
+      <Header 
+        user={user} 
+        onLogout={() => {
+          logout();
+          navigate('/');
+        }} 
+      />
       
       <div className="community-container">
         <div className="community-header">
@@ -321,7 +341,7 @@ const Community: React.FC = () => {
                   </button>
                 ) : (
                   <button 
-                    onClick={() => setIsEditing(true)}
+                    onClick={handleEditClick}
                     className="edit-btn"
                   >
                     Edit Community
@@ -339,6 +359,10 @@ const Community: React.FC = () => {
                 {isMember ? (
                   <button className="leave-button" onClick={handleLeaveCommunity}>
                     Leave Community
+                  </button>
+                ) : hasPendingRequest ? (
+                  <button className="cancel-request-button" onClick={handleCancelJoinRequest}>
+                    Cancel Join Request
                   </button>
                 ) : (
                   <button className="join-button" onClick={handleJoinCommunity}>
@@ -454,6 +478,12 @@ const Community: React.FC = () => {
                 <div className="info-section">
                   <h2>Description</h2>
                   <p>{community.description}</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Community ID: {community.communityId}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {community.members?.length || 0} {community.members?.length === 1 ? 'member' : 'members'}
+                  </p>
                 </div>
 
                 <div className="info-section">
@@ -562,10 +592,10 @@ const Community: React.FC = () => {
               )}
               {isCreator && (
                 <button
-                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/orders`)}
+                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/manage`)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  View Orders
+                  Manage Community
                 </button>
               )}
             </div>

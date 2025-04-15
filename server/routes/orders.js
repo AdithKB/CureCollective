@@ -2,11 +2,26 @@ const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
 const auth = require('../middleware/auth');
+const Product = require('../models/Product');
 
 // Create a new order
 router.post('/', auth, async (req, res) => {
   try {
     const { type, community, items } = req.body;
+    
+    // Check for mandatory user details
+    const missingFields = [];
+    if (!req.user.address) missingFields.push('address');
+    if (!req.user.phone) missingFields.push('phone number');
+    if (!req.user.pincode) missingFields.push('pincode');
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Please update your profile with your ${missingFields.join(', ')} before placing an order. Go to Profile > Edit Profile to add these details.`,
+        error: `Please update your profile with your ${missingFields.join(', ')} before placing an order. Go to Profile > Edit Profile to add these details.`
+      });
+    }
     
     // Generate orderId
     const date = new Date();
@@ -121,6 +136,34 @@ router.get('/community/:communityId', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching community orders'
+    });
+  }
+});
+
+// Get orders for products created by the user
+router.get('/my-products', auth, async (req, res) => {
+  try {
+    // First, get all products created by the user
+    const manufacturerProducts = await Product.find({ manufacturer: req.user._id }).select('_id');
+    const productIds = manufacturerProducts.map(product => product._id);
+
+    // Then, find all orders that contain these products
+    const orders = await Order.find({
+      'items.product': { $in: productIds }
+    })
+    .populate('items.product')
+    .populate('user', 'name email phone address country pincode')
+    .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching product orders:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching product orders'
     });
   }
 });

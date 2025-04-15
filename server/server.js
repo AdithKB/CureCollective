@@ -18,6 +18,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/bulk-orders', require('./routes/bulkOrders'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/communities', require('./routes/communities'));
+app.use('/api', require('./routes/joinRequests'));
 
 // Connect to MongoDB
 const connectDB = async () => {

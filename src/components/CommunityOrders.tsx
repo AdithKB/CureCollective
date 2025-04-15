@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { orderService, communityService } from '../services/api';
-import { Order, Community } from '../types';
+import { Order, Community, Product } from '../types/index';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Footer from './Footer';
@@ -98,12 +98,10 @@ const CommunityOrders: React.FC = () => {
         // Update orders list with proper typing
         const updatedOrders = orders.map(order => {
           if (selectedOrders.includes(order._id)) {
-            const status: OrderStatus = 'processing';
-            const newOrder: Order = {
+            return {
               ...order,
-              status
+              status: 'completed' as const
             };
-            return newOrder;
           }
           return order;
         });
@@ -214,11 +212,11 @@ const CommunityOrders: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">{order.orderId}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">{order.user}</span>
+                        <span className="text-sm text-gray-900">{order.user.name}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          {order.items.map(item => (
+                          {order.items.map((item: { _id: string; product: Product; quantity: number; price: number }) => (
                             <div key={item._id}>
                               {item.product.name} x {item.quantity}
                             </div>
@@ -231,7 +229,6 @@ const CommunityOrders: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
                           order.status === 'completed' ? 'bg-green-100 text-green-800' :
                           'bg-red-100 text-red-800'
                         }`}>

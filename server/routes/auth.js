@@ -136,6 +136,7 @@ router.get('/profile', auth, async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         address: user.address,
         country: user.country,
         pincode: user.pincode,
@@ -154,7 +155,7 @@ router.get('/profile', auth, async (req, res) => {
 // Update user profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { name, currentPassword, newPassword, address, country, pincode } = req.body;
+    const { name, currentPassword, newPassword, phone, address, country, pincode } = req.body;
     
     // Find the user
     const user = await User.findById(req.user.id);
@@ -165,11 +166,12 @@ router.put('/profile', auth, async (req, res) => {
       });
     }
     
-    // Update basic fields
-    if (name) user.name = name;
-    if (address) user.address = address;
-    if (country) user.country = country;
-    if (pincode) user.pincode = pincode;
+    // Update basic fields - allow empty values
+    user.name = name !== undefined ? name : user.name;
+    user.phone = phone !== undefined ? phone : user.phone;
+    user.address = address !== undefined ? address : user.address;
+    user.country = country !== undefined ? country : user.country;
+    user.pincode = pincode !== undefined ? pincode : user.pincode;
     
     // Update password if provided
     if (currentPassword && newPassword) {
@@ -196,6 +198,7 @@ router.put('/profile', auth, async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         address: user.address,
         country: user.country,
         pincode: user.pincode

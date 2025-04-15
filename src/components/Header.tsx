@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import UserMenu from './UserMenu';
-import { User } from '../types';
+import { User } from '../types/index';
 
 interface HeaderProps {
   user: User | null;

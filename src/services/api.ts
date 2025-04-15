@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../constants';
-import { ApiResponse, Product, User, Community, PricingTier, PricingTierData, Order } from '../types';
+import { ApiResponse, Product, User, Community, PricingTier, PricingTierData, Order } from '../types/index';
 import { MESSAGES } from '../constants';
 
 interface RegisterData {
@@ -197,8 +197,15 @@ export const communityService = {
     return response.data;
   },
   join: async (id: string) => {
-    const response = await api.post(`/communities/${id}/join`);
-    return response.data;
+    try {
+      const response = await api.post(`/communities/${id}/join`);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to join community'
+      };
+    }
   },
   leave: async (id: string) => {
     const response = await api.post(`/communities/${id}/leave`);
@@ -211,7 +218,85 @@ export const communityService = {
   unlinkProduct: async (communityId: string, productId: string) => {
     const response = await api.delete(`/communities/${communityId}/products/${productId}`);
     return response.data;
-  }
+  },
+  getJoinRequests: async (communityId: string) => {
+    try {
+      const response = await api.get(`/communities/${communityId}/join-requests`);
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to fetch join requests'
+      };
+    }
+  },
+  getUserJoinRequest: async (communityId: string) => {
+    try {
+      const response = await api.get(`/communities/${communityId}/join-request`);
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to fetch join request'
+      };
+    }
+  },
+  approveJoinRequest: async (requestId: string) => {
+    try {
+      const response = await api.post(`/communities/join-requests/${requestId}/approve`);
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to approve join request'
+      };
+    }
+  },
+  rejectJoinRequest: async (requestId: string) => {
+    try {
+      const response = await api.post(`/communities/join-requests/${requestId}/reject`);
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to reject join request'
+      };
+    }
+  },
+  cancelJoinRequest: async (communityId: string) => {
+    try {
+      const response = await api.delete(`/communities/${communityId}/join-request`);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to cancel join request'
+      };
+    }
+  },
+  removeMember: async (communityId: string, memberId: string) => {
+    try {
+      const response = await api.delete(`/communities/${communityId}/members/${memberId}`);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to remove member'
+      };
+    }
+  },
 };
 
 export const orderService = {
@@ -235,7 +320,7 @@ export const orderService = {
       console.error('Error creating bulk order:', error);
       return { 
         success: false, 
-        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+        error: error.response?.data?.error || error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
       };
     }
   },
@@ -314,7 +399,7 @@ export const orderService = {
       });
       return { 
         success: false, 
-        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
+        error: error.response?.data?.error || error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
       };
     }
   },
@@ -344,6 +429,22 @@ export const orderService = {
       return {
         success: false,
         error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR
+      };
+    }
+  },
+
+  getMyProductOrders: async () => {
+    try {
+      const response = await api.get('/orders/my-products');
+      return { success: true, data: response.data.data };
+    } catch (error: any) {
+      console.error('Error fetching product orders:', error);
+      if (error.response?.status === 404) {
+        return { success: true, data: [] };
+      }
+      return { 
+        success: false, 
+        error: error.response?.data?.message || MESSAGES.ERRORS.GENERIC_ERROR 
       };
     }
   },

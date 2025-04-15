@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { productService } from '../services/api';
-import { Product } from '../types';
+import { Product } from '../types/index';
 import bulkOrderManager from '../services/bulkOrderManager';
 
 const BulkOrderDemo: React.FC = () => {
@@ -22,7 +22,7 @@ const BulkOrderDemo: React.FC = () => {
           setProducts(response.data);
           
           // Register products with the bulk order manager
-          response.data.forEach(product => {
+          response.data.forEach((product: Product) => {
             bulkOrderManager.addProduct(product);
           });
           

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import UserMenu from './UserMenu';
-import { User, AuthResponse } from '../types';
+import { User, AuthResponse } from '../types/index';
 import { authService } from '../services/api';
 import Header from './Header';
 import Footer from './Footer';

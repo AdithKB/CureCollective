@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const communitySchema = new mongoose.Schema({
+  communityId: {
+    type: String,
+    unique: true,
+    required: true
+  },
   name: {
     type: String,
     required: true,
