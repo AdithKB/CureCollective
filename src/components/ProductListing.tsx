@@ -193,51 +193,92 @@ const ProductListing: React.FC = () => {
           <div className="flex flex-col gap-4 mb-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <h1 className="text-3xl font-bold">Available Products</h1>
-              <button
-                onClick={() => navigate('/add-product')}
-                className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors whitespace-nowrap"
-              >
-                Add Product
-              </button>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4 w-full">
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <select
-                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                <option value="all">All Categories</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2">
-                <select
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+              <div className="flex flex-col md:flex-row gap-4 items-center">
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] w-full md:w-64"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <button
+                  onClick={() => navigate('/add-product')}
+                  className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors whitespace-nowrap"
                 >
-                  <option value="name">Sort by Name</option>
-                  <option value="price">Sort by Price</option>
-                  <option value="savings">Sort by Savings</option>
+                  Add Product
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-4 w-full">
+              <div className="relative">
+                <select
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] appearance-none bg-white pr-8"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
                 </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  name="min"
+                  placeholder="Min Price"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] w-32"
+                  value={priceRange.min}
+                  onChange={handlePriceChange}
+                />
+                <span className="text-gray-500">-</span>
+                <input
+                  type="number"
+                  name="max"
+                  placeholder="Max Price"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] w-32"
+                  value={priceRange.max}
+                  onChange={handlePriceChange}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] appearance-none bg-white pr-8"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  >
+                    <option value="name">Sort by Name</option>
+                    <option value="price">Sort by Price</option>
+                    <option value="savings">Sort by Savings</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                </div>
                 <button
                   onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className={`p-2 rounded-md transition-colors ${
-                    sortOrder === 'asc' 
-                      ? 'bg-[#4a6fa5] text-white hover:bg-[#3a5a8c]' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  className="p-2 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
                   title={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}
                 >
                   {sortOrder === 'asc' ? '↑' : '↓'}
+                </button>
+                <button
+                  onClick={resetFilters}
+                  className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                  title="Reset all filters"
+                >
+                  Reset
                 </button>
               </div>
             </div>
@@ -260,7 +301,7 @@ const ProductListing: React.FC = () => {
                       <span className="text-gray-500 line-through">₹{product.regularPrice}</span>
                       <span className="text-[#4a6fa5] font-bold ml-2">₹{product.bulkPrice}</span>
                     </div>
-                    <span className="text-sm text-gray-500">Min: {product.minOrderQuantity}</span>
+                    <span className="text-sm text-gray-500">MOQ: {product.minOrderQuantity}</span>
                   </div>
                   {authUser?.userType === 'patient' && userCommunities.length > 0 && (
                     <div className="mb-4">

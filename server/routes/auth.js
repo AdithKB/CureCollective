@@ -8,7 +8,7 @@ const auth = require('../middleware/auth');
 // Register a new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, country } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -27,7 +27,8 @@ router.post('/register', async (req, res) => {
     const newUser = new User({
       name,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      country
     });
 
     // Save user to database
@@ -46,7 +47,8 @@ router.post('/register', async (req, res) => {
       user: {
         id: newUser._id,
         name: newUser.name,
-        email: newUser.email
+        email: newUser.email,
+        country: newUser.country
       }
     });
   } catch (error) {
@@ -134,6 +136,9 @@ router.get('/profile', auth, async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        address: user.address,
+        country: user.country,
+        pincode: user.pincode,
         createdAt: user.createdAt
       }
     });
@@ -142,6 +147,65 @@ router.get('/profile', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Server error while fetching profile'
+    });
+  }
+});
+
+// Update user profile
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { name, currentPassword, newPassword, address, country, pincode } = req.body;
+    
+    // Find the user
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Update basic fields
+    if (name) user.name = name;
+    if (address) user.address = address;
+    if (country) user.country = country;
+    if (pincode) user.pincode = pincode;
+    
+    // Update password if provided
+    if (currentPassword && newPassword) {
+      // Verify current password
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({
+          success: false,
+          error: 'Current password is incorrect'
+        });
+      }
+      
+      // Hash new password
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+    }
+    
+    // Save updated user
+    await user.save();
+    
+    res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        address: user.address,
+        country: user.country,
+        pincode: user.pincode
+      }
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while updating profile'
     });
   }
 });

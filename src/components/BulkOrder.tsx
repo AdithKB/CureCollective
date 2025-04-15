@@ -317,10 +317,7 @@ const BulkOrder: React.FC = () => {
           product: item.productId,
           quantity: item.quantity,
           price: batchStatus ? batchStatus.currentPrice : item.price,
-          pricingTier: batchStatus ? {
-            minQuantity: batchStatus.currentTier || item.minOrderQuantity,
-            pricePerUnit: batchStatus.currentPrice
-          } as unknown as PricingTier : undefined,
+          pricingTier: 'bulk' as PricingTier,
           additionalDiscount: additionalDiscount
         };
       });

@@ -1,14 +1,9 @@
 const mongoose = require('mongoose');
 
-const bulkOrderSchema = new mongoose.Schema({
+const bulkOrderProductSchema = new mongoose.Schema({
     product: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
-        required: true
-    },
-    initiator: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
         required: true
     },
     targetQuantity: {
@@ -18,18 +13,45 @@ const bulkOrderSchema = new mongoose.Schema({
     currentQuantity: {
         type: Number,
         default: 0
+    }
+});
+
+const participantQuantitySchema = new mongoose.Schema({
+    product: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
     },
-    participants: [{
-        user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        },
-        quantity: Number,
-        joinedAt: {
-            type: Date,
-            default: Date.now
-        }
-    }],
+    quantity: {
+        type: Number,
+        required: true
+    }
+});
+
+const participantSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    quantities: [participantQuantitySchema],
+    joinedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const bulkOrderSchema = new mongoose.Schema({
+    products: [bulkOrderProductSchema],
+    initiator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    community: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Community'
+    },
+    participants: [participantSchema],
     status: {
         type: String,
         enum: ['open', 'processing', 'completed', 'cancelled'],
@@ -37,7 +59,7 @@ const bulkOrderSchema = new mongoose.Schema({
     },
     expiresAt: {
         type: Date,
-        required: true
+        default: null
     },
     createdAt: {
         type: Date,

@@ -4,6 +4,8 @@ import { communityService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/Community.css';
 import { productService } from '../services/api';
+import Header from './Header';
+import Footer from './Footer';
 
 interface Community {
   _id: string;
@@ -301,274 +303,277 @@ const Community: React.FC = () => {
   }
 
   return (
-    <div className="community-container">
-      <div className="community-header">
-        <button className="back-button" onClick={() => navigate('/communities')}>
-          ← Back to Communities
-        </button>
-        <h1>{community.name}</h1>
-        <div className="community-actions">
-          {isCreator ? (
-            <>
-              {isEditing ? (
+    <div className="min-h-screen bg-[#f5f7fa]">
+      <Header user={user} onLogout={() => navigate('/')} />
+      
+      <div className="community-container">
+        <div className="community-header">
+          <h1>{community.name}</h1>
+          <div className="community-actions">
+            {isCreator ? (
+              <>
+                {isEditing ? (
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="cancel-btn"
+                  >
+                    Cancel Edit
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="edit-btn"
+                  >
+                    Edit Community
+                  </button>
+                )}
                 <button 
-                  onClick={() => setIsEditing(false)}
-                  className="cancel-btn"
+                  onClick={handleDeleteCommunity}
+                  className="delete-btn"
                 >
-                  Cancel Edit
+                  Delete Community
                 </button>
-              ) : (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="edit-btn"
-                >
-                  Edit Community
-                </button>
-              )}
-              <button 
-                onClick={handleDeleteCommunity}
-                className="delete-btn"
-              >
-                Delete Community
-              </button>
-            </>
-          ) : (
-            <>
-              {isMember ? (
-                <button className="leave-button" onClick={handleLeaveCommunity}>
-                  Leave Community
-                </button>
-              ) : (
-                <button className="join-button" onClick={handleJoinCommunity}>
-                  Join Community
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {success && <div className="success-message">{success}</div>}
-      {error && <div className="error-message">{error}</div>}
-
-      <div className="community-content">
-        <div className="community-info">
-          {isEditing ? (
-            <form onSubmit={handleEditSubmit} className="edit-form">
-              <div className="form-group">
-                <label htmlFor="name">Community Name</label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={editForm.name}
-                  onChange={handleEditChange}
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="description">Description</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={editForm.description}
-                  onChange={handleEditChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="relatedMedications">Related Products</label>
-                <select
-                  id="relatedMedications"
-                  name="relatedMedications"
-                  multiple
-                  size={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                  value={editForm.relatedMedications}
-                  onChange={handleMultiSelectChange}
-                >
-                  {products.map(product => (
-                    <option key={product._id} value={product._id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-2 flex items-center text-sm text-gray-500">
-                  <span className="mr-2">Selected: {editForm.relatedMedications.length} products</span>
-                  <span>• Hold Ctrl/Cmd to select multiple products</span>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="locations">Locations</label>
-                <select
-                  id="locations"
-                  name="locations"
-                  multiple
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                  value={editForm.locations}
-                  onChange={handleMultiSelectChange}
-                >
-                  {availableLocations.map(location => (
-                    <option key={location.value} value={location.value}>
-                      {location.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-sm text-gray-500">Hold Ctrl/Cmd to select multiple locations</p>
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="privacy">Privacy Setting</label>
-                <select
-                  id="privacy"
-                  name="privacy"
-                  value={editForm.privacy}
-                  onChange={handleEditChange}
-                >
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="guidelines">Community Guidelines</label>
-                <textarea
-                  id="guidelines"
-                  name="guidelines"
-                  value={editForm.guidelines}
-                  onChange={handleEditChange}
-                />
-              </div>
-              
-              <div className="form-actions">
-                <button type="submit" className="save-btn">Save Changes</button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className="info-section">
-                <h2>Description</h2>
-                <p>{community.description}</p>
-              </div>
-
-              <div className="info-section">
-                <h2>Health Conditions</h2>
-                <div className="tags">
-                  {community.healthConditions && community.healthConditions.length > 0 ? (
-                    community.healthConditions.map((condition, index) => (
-                      <span key={index} className="tag">
-                        {condition}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="no-tags">No health conditions specified</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="info-section">
-                <h2>Related Products</h2>
-                <div className="tags">
-                  {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                    community.relatedMedications.map((medication: string | { _id: string; name: string }) => (
-                      <span 
-                        key={typeof medication === 'string' ? medication : medication._id} 
-                        className="tag"
-                      >
-                        {typeof medication === 'string' ? medication : medication.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="no-tags">No related products specified</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="info-section">
-                <h2>Locations</h2>
-                <div className="tags">
-                  {community.locations && community.locations.length > 0 ? (
-                    community.locations.map((location, index) => (
-                      <span key={index} className="tag">
-                        {location}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="no-tags">No locations specified</span>
-                  )}
-                </div>
-              </div>
-
-              {community.guidelines && (
-                <div className="info-section">
-                  <h2>Community Guidelines</h2>
-                  <p>{community.guidelines}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="community-posts">
-          <h2>Community Posts</h2>
-          
-          {isMember && (
-            <form onSubmit={handlePostSubmit} className="post-form">
-              <textarea
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                placeholder="Share your thoughts with the community..."
-                rows={3}
-              />
-              <button type="submit">Post</button>
-            </form>
-          )}
-
-          <div className="posts-list">
-            {community.posts && community.posts.length > 0 ? (
-              community.posts.map((post) => (
-                <div key={post._id} className="post-card">
-                  <div className="post-header">
-                    <span className="author">{post.author.name}</span>
-                    <span className="date">
-                      {new Date(post.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="post-content">{post.content}</p>
-                </div>
-              ))
+              </>
             ) : (
-              <p className="no-posts">No posts yet. Be the first to share!</p>
+              <>
+                {isMember ? (
+                  <button className="leave-button" onClick={handleLeaveCommunity}>
+                    Leave Community
+                  </button>
+                ) : (
+                  <button className="join-button" onClick={handleJoinCommunity}>
+                    Join Community
+                  </button>
+                )}
+              </>
             )}
+          </div>
+        </div>
+
+        {success && <div className="success-message">{success}</div>}
+        {error && <div className="error-message">{error}</div>}
+
+        <div className="community-content">
+          <div className="community-info">
+            {isEditing ? (
+              <form onSubmit={handleEditSubmit} className="edit-form">
+                <div className="form-group">
+                  <label htmlFor="name">Community Name</label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="description">Description</label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={editForm.description}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="relatedMedications">Related Products</label>
+                  <select
+                    id="relatedMedications"
+                    name="relatedMedications"
+                    multiple
+                    size={5}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                    value={editForm.relatedMedications}
+                    onChange={handleMultiSelectChange}
+                  >
+                    {products.map(product => (
+                      <option key={product._id} value={product._id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-2 flex items-center text-sm text-gray-500">
+                    <span className="mr-2">Selected: {editForm.relatedMedications.length} products</span>
+                    <span>• Hold Ctrl/Cmd to select multiple products</span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="locations">Locations</label>
+                  <select
+                    id="locations"
+                    name="locations"
+                    multiple
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
+                    value={editForm.locations}
+                    onChange={handleMultiSelectChange}
+                  >
+                    {availableLocations.map(location => (
+                      <option key={location.value} value={location.value}>
+                        {location.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500">Hold Ctrl/Cmd to select multiple locations</p>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="privacy">Privacy Setting</label>
+                  <select
+                    id="privacy"
+                    name="privacy"
+                    value={editForm.privacy}
+                    onChange={handleEditChange}
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="guidelines">Community Guidelines</label>
+                  <textarea
+                    id="guidelines"
+                    name="guidelines"
+                    value={editForm.guidelines}
+                    onChange={handleEditChange}
+                  />
+                </div>
+                
+                <div className="form-actions">
+                  <button type="submit" className="save-btn">Save Changes</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="info-section">
+                  <h2>Description</h2>
+                  <p>{community.description}</p>
+                </div>
+
+                <div className="info-section">
+                  <h2>Health Conditions</h2>
+                  <div className="tags">
+                    {community.healthConditions && community.healthConditions.length > 0 ? (
+                      community.healthConditions.map((condition, index) => (
+                        <span key={index} className="tag">
+                          {condition}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="no-tags">No health conditions specified</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="info-section">
+                  <h2>Related Products</h2>
+                  <div className="tags">
+                    {community.relatedMedications && community.relatedMedications.length > 0 ? (
+                      community.relatedMedications.map((medication: string | { _id: string; name: string }) => (
+                        <span 
+                          key={typeof medication === 'string' ? medication : medication._id} 
+                          className="tag"
+                        >
+                          {typeof medication === 'string' ? medication : medication.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="no-tags">No related products specified</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="info-section">
+                  <h2>Locations</h2>
+                  <div className="tags">
+                    {community.locations && community.locations.length > 0 ? (
+                      community.locations.map((location, index) => (
+                        <span key={index} className="tag">
+                          {location}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="no-tags">No locations specified</span>
+                    )}
+                  </div>
+                </div>
+
+                {community.guidelines && (
+                  <div className="info-section">
+                    <h2>Community Guidelines</h2>
+                    <p>{community.guidelines}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="community-posts">
+            <h2>Community Posts</h2>
+            
+            {isMember && (
+              <form onSubmit={handlePostSubmit} className="post-form">
+                <textarea
+                  value={newPost}
+                  onChange={(e) => setNewPost(e.target.value)}
+                  placeholder="Share your thoughts with the community..."
+                  rows={3}
+                />
+                <button type="submit">Post</button>
+              </form>
+            )}
+
+            <div className="posts-list">
+              {community.posts && community.posts.length > 0 ? (
+                community.posts.map((post) => (
+                  <div key={post._id} className="post-card">
+                    <div className="post-header">
+                      <span className="author">{post.author.name}</span>
+                      <span className="date">
+                        {new Date(post.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="post-content">{post.content}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="no-posts">No posts yet. Be the first to share!</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="community-footer">
+          <div className="flex flex-col items-start gap-2">
+            <div className="flex gap-2 w-full">
+              {isMember && (
+                <button
+                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/place-order`)}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Place Order
+                </button>
+              )}
+              {isCreator && (
+                <button
+                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/orders`)}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  View Orders
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="community-footer">
-        <div className="flex flex-col items-start gap-2">
-          <div className="flex gap-2 w-full">
-            {isMember && (
-              <button
-                onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/place-order`)}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Place Order
-              </button>
-            )}
-            {isCreator && (
-              <button
-                onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}/orders`)}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                View Orders
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <Footer />
     </div>
   );
 };

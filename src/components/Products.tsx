@@ -13,7 +13,6 @@ const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   useEffect(() => {
@@ -51,10 +50,8 @@ const Products: React.FC = () => {
   };
 
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return matchesCategory;
   });
 
   const categories = Array.from(new Set(products.map(product => product.category)));
@@ -73,16 +70,10 @@ const Products: React.FC = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-            <h1 className="text-3xl font-bold mb-4 md:mb-0">Products</h1>
-            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-4">Products</h1>
+            
+            <div className="flex flex-row items-center gap-4">
               <button
                 onClick={() => navigate('/add-product')}
                 className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors whitespace-nowrap"
@@ -91,6 +82,12 @@ const Products: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {error && (
+            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
+              {error}
+            </div>
+          )}
 
           <div className="mb-4">
             <select
@@ -104,12 +101,6 @@ const Products: React.FC = () => {
               ))}
             </select>
           </div>
-
-          {error && (
-            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
-              {error}
-            </div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map(product => (

@@ -7,6 +7,7 @@ interface RegisterData {
   name: string;
   email: string;
   password: string;
+  country: string;
 }
 
 interface ApiError {
@@ -216,12 +217,20 @@ export const communityService = {
 export const orderService = {
   createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier; additionalDiscount?: number }>) => {
     try {
-      const response = await api.post('/orders/bulk', {
-        community: communityId,
-        items
+      // Create a single bulk order with all products
+      const response = await api.post('/bulk-orders', {
+        products: items.map(item => ({
+          productId: item.product,
+          targetQuantity: item.quantity,
+          initialQuantity: item.quantity
+        })),
+        community: communityId
       });
       
-      return { success: true, data: response.data.data };
+      // Dispatch custom event to notify Profile component to refresh orders
+      window.dispatchEvent(new Event('orderCreated'));
+      
+      return { success: true, data: response.data };
     } catch (error: any) {
       console.error('Error creating bulk order:', error);
       return { 

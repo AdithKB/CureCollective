@@ -36,7 +36,10 @@ const Profile: React.FC = () => {
     email: '',
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    address: '',
+    country: '',
+    pincode: ''
   });
   const [products, setProducts] = useState<Product[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -47,6 +50,34 @@ const Profile: React.FC = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // List of countries for the dropdown
+  const countries = [
+    'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria', 'Azerbaijan',
+    'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi',
+    'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic',
+    'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic',
+    'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia',
+    'Fiji', 'Finland', 'France',
+    'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+    'Haiti', 'Honduras', 'Hungary',
+    'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Ivory Coast',
+    'Jamaica', 'Japan', 'Jordan',
+    'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan',
+    'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
+    'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar',
+    'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway',
+    'Oman',
+    'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal',
+    'Qatar',
+    'Romania', 'Russia', 'Rwanda',
+    'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria',
+    'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu',
+    'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan',
+    'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam',
+    'Yemen',
+    'Zambia', 'Zimbabwe'
+  ];
 
   const fetchOrders = async () => {
     try {
@@ -70,7 +101,16 @@ const Profile: React.FC = () => {
         setLoading(true);
         const response = await authService.getProfile();
         if (response.success && response.user) {
-          // Profile data is already in the user state from useAuth
+          // Initialize form data with user data
+          const user = response.user;
+          setFormData(prev => ({
+            ...prev,
+            name: user.name || '',
+            email: user.email || '',
+            address: user.address || '',
+            country: user.country || '',
+            pincode: user.pincode || ''
+          }));
           setLoading(false);
         } else {
           setError(response.error || MESSAGES.ERRORS.GENERIC_ERROR);
@@ -160,7 +200,7 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -178,29 +218,58 @@ const Profile: React.FC = () => {
       return;
     }
 
+    // Validate mandatory fields
+    if (!formData.country) {
+      setError('Country is required');
+      return;
+    }
+
+    if (!formData.pincode) {
+      setError('Pincode is required');
+      return;
+    }
+
     try {
       const response = await authService.updateProfile({
         name: formData.name,
         currentPassword: formData.currentPassword,
-        newPassword: formData.newPassword
+        newPassword: formData.newPassword,
+        address: formData.address,
+        country: formData.country,
+        pincode: formData.pincode
       });
 
       if (response.success) {
         setSuccess('Profile updated successfully');
-        if (response.user) {
-          // Profile data is already in the user state from useAuth
+        
+        // Refresh user data after successful update
+        const profileResponse = await authService.getProfile();
+        if (profileResponse.success && profileResponse.user) {
+          // Update the user state in the auth context
+          if (user) {
+            user.name = profileResponse.user.name;
+            user.email = profileResponse.user.email;
+            user.address = profileResponse.user.address;
+            user.country = profileResponse.user.country;
+            user.pincode = profileResponse.user.pincode;
+          }
+          
+          // Reset password fields
           setFormData(prev => ({
             ...prev,
             currentPassword: '',
             newPassword: '',
             confirmPassword: ''
           }));
+          
+          // Exit edit mode
+          setIsEditing(false);
         }
       } else {
         setError(response.error || 'Failed to update profile');
       }
-    } catch (error) {
-      setError('An error occurred while updating profile');
+    } catch (err) {
+      setError('An error occurred while updating your profile');
     }
   };
 
@@ -368,6 +437,53 @@ const Profile: React.FC = () => {
                         />
                       </div>
 
+                      <div className="form-group">
+                        <label htmlFor="address">Address</label>
+                        <textarea
+                          id="address"
+                          name="address"
+                          value={formData.address}
+                          onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                          disabled={!isEditing}
+                          className="form-input"
+                          rows={3}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="country">Country <span className="text-red-500">*</span></label>
+                        <select
+                          id="country"
+                          name="country"
+                          value={formData.country}
+                          onChange={handleChange}
+                          disabled={!isEditing}
+                          required
+                          className="form-input"
+                        >
+                          <option value="">Select a country</option>
+                          {countries.map((country) => (
+                            <option key={country} value={country}>
+                              {country}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="pincode">Pincode <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          id="pincode"
+                          name="pincode"
+                          value={formData.pincode}
+                          onChange={handleChange}
+                          disabled={!isEditing}
+                          required
+                          className="form-input"
+                        />
+                      </div>
+
                       {isEditing && (
                         <>
                           <div className="form-group">
@@ -471,8 +587,11 @@ const Profile: React.FC = () => {
                                 className="delete-button"
                                 onClick={() => handleDeleteProduct(product._id)}
                                 disabled={productsLoading}
+                                title="Delete Product"
                               >
-                                ×
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </div>
                             <p className="product-description">{product.description}</p>
@@ -529,7 +648,7 @@ const Profile: React.FC = () => {
                               <h4>{community.name}</h4>
                               <div className="community-actions">
                                 <button 
-                                  onClick={() => navigate(`/communities/${community._id}`)}
+                                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}`)}
                                   className="view-button"
                                 >
                                   View
@@ -537,8 +656,11 @@ const Profile: React.FC = () => {
                                 <button 
                                   onClick={() => handleDeleteCommunity(community._id)}
                                   className="delete-button"
+                                  title="Delete Community"
                                 >
-                                  Delete
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
                                 </button>
                               </div>
                             </div>
@@ -646,9 +768,12 @@ const Profile: React.FC = () => {
                                 {order.status === 'pending' && (
                                   <button
                                     onClick={() => setDeleteOrderId(order._id)}
-                                    className="mt-2 text-sm text-red-500 hover:text-red-700"
+                                    className="mt-2 text-red-500 hover:text-red-700 flex items-center justify-end"
+                                    title="Delete Order"
                                   >
-                                    Delete Order
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
                                   </button>
                                 )}
                               </div>

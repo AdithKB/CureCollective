@@ -3,6 +3,9 @@ export interface User {
   name: string;
   email: string;
   userType: 'patient' | 'pharmacist';
+  address?: string;
+  country?: string;
+  pincode?: string;
   createdAt: string;
   updatedAt: string;
 }

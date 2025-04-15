@@ -18,6 +18,18 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  address: {
+    type: String,
+    trim: true
+  },
+  country: {
+    type: String,
+    trim: true
+  },
+  pincode: {
+    type: String,
+    trim: true
+  },
   createdAt: {
     type: Date,
     default: Date.now

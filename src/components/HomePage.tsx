@@ -22,7 +22,8 @@ const HomePage: React.FC = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    country: ''
   });
   const [loginData, setLoginData] = useState({
     email: '',
@@ -31,6 +32,24 @@ const HomePage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [passwordStrength, setPasswordStrength] = useState('');
+
+  const countries = [
+    'United States',
+    'United Kingdom',
+    'Canada',
+    'Australia',
+    'India',
+    'Germany',
+    'France',
+    'Spain',
+    'Italy',
+    'Japan',
+    'China',
+    'Brazil',
+    'Mexico',
+    'South Africa',
+    'Nigeria'
+  ];
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -112,7 +131,8 @@ const HomePage: React.FC = () => {
       const response = await authService.register({
         name: formData.name,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        country: formData.country
       });
 
       if (response.success) {
@@ -122,7 +142,8 @@ const HomePage: React.FC = () => {
           name: '',
           email: '',
           password: '',
-          confirmPassword: ''
+          confirmPassword: '',
+          country: ''
         });
       } else {
         setError(response.error || 'Registration failed');
@@ -166,118 +187,187 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fa] text-[#333]">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-indigo-50 text-gray-800 relative">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute inset-0" style={{ 
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234a6fa5' fill-opacity='0.2'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          backgroundSize: '60px 60px'
+        }}></div>
+      </div>
+      
       {/* Global Error and Success Messages */}
       <div className="fixed top-4 right-4 z-[1000]">
         {error && (
-          <div data-testid="error-message" className="p-4 bg-red-100 border border-red-400 text-red-700 rounded shadow-lg mb-2">
+          <div 
+            data-testid="error-message" 
+            className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-lg mb-2 flex items-center animate-fade-in"
+          >
+            <svg className="h-5 w-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             {error}
           </div>
         )}
         {success && (
-          <div data-testid="success-message" className="p-4 bg-green-100 border border-green-400 text-green-700 rounded shadow-lg">
+          <div 
+            data-testid="success-message" 
+            className="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded shadow-lg flex items-center animate-fade-in"
+          >
+            <svg className="h-5 w-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
             {success}
           </div>
         )}
       </div>
 
-      <Header user={user} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} onLogin={openLoginModal} />
 
       {/* Hero Section */}
-      <section className="py-20 text-center">
-        <div className="container mx-auto px-4">
-          <h1 data-testid="page-title" className="text-4xl font-bold mb-4 text-[#333]">
-            Join the CureCollective Community
-          </h1>
-          <p className="text-xl mb-8 text-[#666] max-w-2xl mx-auto">
-            Your platform for affordable healthcare through community purchasing power.
-          </p>
-          <div className="flex justify-center space-x-4">
-            {!user ? (
-              <>
-                <button
-                  onClick={openLoginModal}
-                  data-testid="login-button"
-                  className="px-8 py-3 bg-white text-[#4a6fa5] border border-[#4a6fa5] rounded-lg hover:bg-[#f5f7fa] transition-colors"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={openSignupModal}
-                  data-testid="signup-button"
-                  className="px-8 py-3 bg-white text-[#4a6fa5] border border-[#4a6fa5] rounded-lg hover:bg-[#f5f7fa] transition-colors"
-                >
-                  Sign Up
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/add-product"
-                  className="px-8 py-3 bg-white text-[#4a6fa5] border border-[#4a6fa5] rounded-lg hover:bg-[#f5f7fa] transition-colors"
-                >
-                  Add Product
-                </Link>
-                <Link
-                  to="/create-community"
-                  className="px-8 py-3 bg-[#4a6fa5] text-white rounded-lg hover:bg-[#3a5a8c] transition-colors"
-                >
-                  Create Community
-                </Link>
-              </>
-            )}
+      <section className="py-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-100/50 to-indigo-100/50 opacity-70"></div>
+        <div className="absolute inset-0" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%234a6fa5' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+          opacity: 0.3
+        }}></div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="max-w-3xl mx-auto text-center">
+            <h1 
+              data-testid="page-title" 
+              className="text-4xl md:text-5xl font-bold mb-6 text-gray-900 leading-tight"
+            >
+              Join the <span className="text-[#4a6fa5]">Cure</span><span className="text-black">Collective</span> Community
+            </h1>
+            <p className="text-xl mb-8 text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Your platform for affordable healthcare through community purchasing power.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+              {!user ? (
+                <>
+                  <button
+                    onClick={openLoginModal}
+                    data-testid="login-button"
+                    className="btn btn-primary px-8 py-3 text-lg font-medium"
+                  >
+                    Log In
+                  </button>
+                  <button
+                    onClick={openSignupModal}
+                    data-testid="signup-button"
+                    className="btn btn-secondary px-8 py-3 text-lg font-medium"
+                  >
+                    Sign Up
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                  <Link
+                    to="/products"
+                    className="btn btn-primary px-8 py-3 text-lg font-medium"
+                  >
+                    Browse Products
+                  </Link>
+                  <Link
+                    to="/communities"
+                    className="btn btn-primary px-8 py-3 text-lg font-medium"
+                  >
+                    Browse Communities
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-white">
+      <section id="features" className="py-16 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl text-center mb-12 text-[#333]">Why Choose MedCare?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-[#f9f9f9] rounded-lg p-8 text-center shadow-sm hover:-translate-y-1 transition-transform">
-              <div className="text-4xl mb-5 text-[#4a6fa5]">💰</div>
-              <h3 className="text-xl mb-4 text-[#333]">Save Money</h3>
-              <p className="text-[#666]">Access wholesale prices through bulk ordering. Save up to 40% on essential medications.</p>
+            <div className="card text-center p-6 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="h-8 w-8 text-[#4a6fa5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">Join a Community</h3>
+              <p className="text-gray-600">Connect with others who share your health needs and interests.</p>
             </div>
-            <div className="bg-[#f9f9f9] rounded-lg p-8 text-center shadow-sm hover:-translate-y-1 transition-transform">
-              <div className="text-4xl mb-5 text-[#4a6fa5]">🔄</div>
-              <h3 className="text-xl mb-4 text-[#333]">Direct Connection</h3>
-              <p className="text-[#666]">Skip the middlemen and connect directly with pharmacists and manufacturers.</p>
+            <div className="card text-center p-6 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="h-8 w-8 text-[#4a6fa5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">Browse Products</h3>
+              <p className="text-gray-600">Discover healthcare products at community-discounted prices.</p>
             </div>
-            <div className="bg-[#f9f9f9] rounded-lg p-8 text-center shadow-sm hover:-translate-y-1 transition-transform">
-              <div className="text-4xl mb-5 text-[#4a6fa5]">👥</div>
-              <h3 className="text-xl mb-4 text-[#333]">Community Power</h3>
-              <p className="text-[#666]">Join with others to increase order volume and unlock bulk discounts.</p>
+            <div className="card text-center p-6 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="h-8 w-8 text-[#4a6fa5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">Save Money</h3>
+              <p className="text-gray-600">Benefit from bulk purchasing discounts and special offers.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 bg-[#f5f7fa]">
+      {/* About Section */}
+      <section id="about" className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl text-center mb-12 text-[#333]">How It Works</h2>
-          <div className="flex flex-wrap justify-between">
-            <div className="flex-1 min-w-[250px] m-4 text-center">
-              <div className="w-12 h-12 bg-[#4a6fa5] text-white rounded-full flex justify-center items-center mx-auto mb-5 text-xl font-bold">1</div>
-              <h3 className="mb-3 text-[#333]">Create an Account</h3>
-              <p className="text-[#666]">Sign up as a patient, pharmacist, or manufacturer.</p>
-            </div>
-            <div className="flex-1 min-w-[250px] m-4 text-center">
-              <div className="w-12 h-12 bg-[#4a6fa5] text-white rounded-full flex justify-center items-center mx-auto mb-5 text-xl font-bold">2</div>
-              <h3 className="mb-3 text-[#333]">Browse Medications</h3>
-              <p className="text-[#666]">Search for medications you need or list products you offer.</p>
-            </div>
-            <div className="flex-1 min-w-[250px] m-4 text-center">
-              <div className="w-12 h-12 bg-[#4a6fa5] text-white rounded-full flex justify-center items-center mx-auto mb-5 text-xl font-bold">3</div>
-              <h3 className="mb-3 text-[#333]">Place Bulk Orders</h3>
-              <p className="text-[#666]">Join existing group orders or start your own bulk purchase.</p>
-            </div>
-            <div className="flex-1 min-w-[250px] m-4 text-center">
-              <div className="w-12 h-12 bg-[#4a6fa5] text-white rounded-full flex justify-center items-center mx-auto mb-5 text-xl font-bold">4</div>
-              <h3 className="mb-3 text-[#333]">Save Money</h3>
-              <p className="text-[#666]">Benefit from wholesale pricing and reduced costs.</p>
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">About CureCollective</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <p className="text-gray-600 leading-relaxed">
+                  CureCollective is a community-driven healthcare platform that connects individuals with similar health needs to access affordable medications and healthcare products through the power of collective purchasing.
+                </p>
+                <p className="text-gray-600 leading-relaxed">
+                  Our mission is to make healthcare more accessible and affordable for everyone by leveraging the buying power of communities. By joining together, members can access significant discounts on medications and healthcare products that would otherwise be prohibitively expensive.
+                </p>
+                <p className="text-gray-600 leading-relaxed">
+                  Founded in 2023, CureCollective has grown to serve thousands of members across multiple communities, helping them save on essential healthcare products while connecting with others who share similar health journeys.
+                </p>
+                <div className="pt-4">
+                  <Link
+                    to="/about"
+                    className="inline-flex items-center text-[#4a6fa5] font-medium hover:text-[#3a5a8c] transition-colors"
+                  >
+                    Learn more about our story
+                    <svg className="ml-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-[#4a6fa5]/20 to-[#3a5a8c]/20 rounded-lg transform rotate-3"></div>
+                <div className="bg-white p-6 rounded-lg shadow-lg relative z-10">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-3xl font-bold text-[#4a6fa5] mb-1">10K+</div>
+                      <div className="text-sm text-gray-600">Active Members</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-3xl font-bold text-[#4a6fa5] mb-1">50+</div>
+                      <div className="text-sm text-gray-600">Communities</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-3xl font-bold text-[#4a6fa5] mb-1">$2M+</div>
+                      <div className="text-sm text-gray-600">Saved by Members</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-3xl font-bold text-[#4a6fa5] mb-1">1000+</div>
+                      <div className="text-sm text-gray-600">Products Available</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -285,163 +375,299 @@ const HomePage: React.FC = () => {
 
       {/* Login Modal */}
       {showLoginModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[900]">
-          <div className="bg-white p-8 rounded-lg max-w-md w-full relative">
-            <button 
-              onClick={closeLoginModal}
-              data-testid="close-modal-button"
-              className="absolute top-4 right-4 text-2xl text-gray-500 hover:text-gray-700"
-            >
-              &times;
-            </button>
-            <h2 className="text-2xl text-center mb-6 text-[#333]">Login to Your Account</h2>
-            <form onSubmit={handleLogin}>
-              <div className="mb-5">
-                <label htmlFor="loginEmail" className="block mb-2 font-medium text-[#555]">Email Address</label>
-                <input 
-                  type="email" 
-                  id="loginEmail" 
-                  name="loginEmail"
-                  data-testid="email-input"
-                  value={loginData.email}
-                  onChange={(e) => handleLoginInputChange('email', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md"
-                  required 
-                />
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 animate-fade-in">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
+              <button 
+                onClick={closeLoginModal}
+                className="text-gray-700 hover:text-gray-900 focus:outline-none transition-colors bg-gray-100 hover:bg-gray-200 rounded-full p-1"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-600">Log in to access your account and manage your healthcare purchases.</p>
+            </div>
+            
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email or Phone Number</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    id="login-email"
+                    value={loginData.email}
+                    onChange={(e) => handleLoginInputChange('email', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
+                    placeholder="Enter your email or phone number"
+                    required
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  You can use either your email address or phone number to log in
+                </p>
               </div>
-              <div className="mb-5">
-                <label htmlFor="loginPassword" className="block mb-2 font-medium text-[#555]">Password</label>
-                <input
-                  type="password"
-                  id="loginPassword"
-                  data-testid="password-input"
-                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#4a6fa5]"
-                  value={loginData.password}
-                  onChange={(e) => handleLoginInputChange('password', e.target.value)}
-                  required
-                />
+              
+              <div>
+                <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="password"
+                    id="login-password"
+                    value={loginData.password}
+                    onChange={(e) => handleLoginInputChange('password', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
+                    placeholder="Enter your password"
+                    required
+                  />
+                </div>
               </div>
-              <div className="mb-5">
-                <button
-                  type="button"
-                  data-testid="forgot-password-link"
-                  className="text-sm text-blue-500 hover:text-blue-700"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    closeLoginModal();
-                    // Handle forgot password
-                  }}
-                >
-                  Forgot Password?
-                </button>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    id="remember-me"
+                    name="remember-me"
+                    type="checkbox"
+                    className="h-4 w-4 text-[#4a6fa5] focus:ring-[#4a6fa5] border-gray-300 rounded"
+                  />
+                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                    Remember me
+                  </label>
+                </div>
+                
+                <div className="text-sm">
+                  <a href="#" className="text-[#4a6fa5] hover:text-[#3a5a8c] font-medium">
+                    Forgot password?
+                  </a>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <button 
-                  type="button" 
-                  onClick={closeLoginModal}
-                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  data-testid="submit-button"
-                  className="px-5 py-2 bg-[#4a6fa5] text-white rounded hover:bg-[#3a5a80] transition-colors"
-                >
-                  Login
-                </button>
-              </div>
+              
+              <button
+                type="submit"
+                className="btn btn-primary w-full py-3 text-lg font-medium mt-6"
+              >
+                Log In
+              </button>
             </form>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Don't have an account?{' '}
+                <button
+                  onClick={() => {
+                    closeLoginModal();
+                    openSignupModal();
+                  }}
+                  className="text-[#4a6fa5] hover:text-[#3a5a8c] font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                >
+                  Sign Up
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Sign Up Modal */}
+      {/* Signup Modal */}
       {showSignupModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[900]">
-          <div className="bg-white p-8 rounded-lg max-w-md w-full relative">
-            <button 
-              onClick={closeSignupModal}
-              data-testid="close-modal-button"
-              className="absolute top-4 right-4 text-2xl text-gray-500 hover:text-gray-700"
-            >
-              &times;
-            </button>
-            <h2 className="text-2xl text-center mb-6 text-[#333]">Create Your Account</h2>
-            <form onSubmit={handleSignup}>
-              <div className="mb-5">
-                <label htmlFor="name" className="block mb-2 font-medium text-[#555]">Full Name</label>
-                <input 
-                  type="text" 
-                  id="name" 
-                  name="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md"
-                  required 
-                />
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 animate-fade-in">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Create Your Account</h2>
+              <button 
+                onClick={closeSignupModal}
+                className="text-gray-700 hover:text-gray-900 focus:outline-none transition-colors bg-gray-100 hover:bg-gray-200 rounded-full p-1"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-600">Join our community to access affordable healthcare products and connect with others.</p>
+            </div>
+            
+            <form onSubmit={handleSignup} className="space-y-5">
+              <div>
+                <label htmlFor="signup-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    id="signup-name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
+                    placeholder="Enter your full name"
+                    required
+                  />
+                </div>
               </div>
-              <div className="mb-5">
-                <label htmlFor="email" className="block mb-2 font-medium text-[#555]">Email Address</label>
-                <input 
-                  type="email" 
-                  id="email" 
-                  name="email"
-                  data-testid="email-input"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md"
-                  required 
-                />
+              
+              <div>
+                <label htmlFor="signup-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <select
+                    id="signup-country"
+                    value={formData.country}
+                    onChange={(e) => handleInputChange('country', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent appearance-none bg-white"
+                    required
+                  >
+                    <option value="">Select your country</option>
+                    {countries.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <div className="mb-5">
-                <label htmlFor="password" className="block mb-2 font-medium text-[#555]">Password</label>
-                <input 
-                  type="password" 
-                  id="password" 
-                  name="password"
-                  data-testid="password-input"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md"
-                  required 
-                />
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email or Phone Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Enter email or phone number"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  You can use either your email address or phone number to sign up
+                </p>
+              </div>
+              
+              <div>
+                <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="password"
+                    id="signup-password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
+                    placeholder="Create a strong password"
+                    required
+                  />
+                </div>
+                
                 {passwordStrength && (
-                  <div data-testid="password-strength-indicator" className="mt-1 text-sm">
-                    {passwordStrength}
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">Password strength:</span>
+                      <span className={`text-xs font-medium ${
+                        passwordStrength === 'Weak' ? 'text-red-500' : 
+                        passwordStrength === 'Medium' ? 'text-yellow-500' : 
+                        'text-green-500'
+                      }`}>
+                        {passwordStrength}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          passwordStrength === 'Weak' ? 'bg-red-500 w-1/3' : 
+                          passwordStrength === 'Medium' ? 'bg-yellow-500 w-2/3' : 
+                          'bg-green-500 w-full'
+                        }`}
+                      ></div>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      {passwordStrength === 'Weak' && 'Use at least 8 characters with a mix of letters, numbers & symbols'}
+                      {passwordStrength === 'Medium' && 'Good, but could be stronger with more variety'}
+                      {passwordStrength === 'Strong' && 'Excellent! Your password is secure'}
+                    </div>
                   </div>
                 )}
               </div>
-              <div className="mb-5">
-                <label htmlFor="confirmPassword" className="block mb-2 font-medium text-[#555]">Confirm Password</label>
-                <input 
-                  type="password" 
-                  id="confirmPassword" 
-                  name="confirmPassword"
-                  data-testid="confirm-password-input"
-                  value={formData.confirmPassword}
-                  onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md"
-                  required 
-                />
+              
+              <div>
+                <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="password"
+                    id="signup-confirm-password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
+                    placeholder="Confirm your password"
+                    required
+                  />
+                </div>
               </div>
-              <div className="flex justify-between">
-                <button 
-                  type="button" 
-                  onClick={closeSignupModal}
-                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  data-testid="submit-button"
-                  className="px-5 py-2 bg-[#4a6fa5] text-white rounded hover:bg-[#3a5a80] transition-colors"
-                >
-                  Sign Up
-                </button>
-              </div>
+              
+              <button
+                type="submit"
+                className="btn btn-primary w-full py-3 text-lg font-medium mt-6"
+              >
+                Create Account
+              </button>
             </form>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <button
+                  onClick={() => {
+                    closeSignupModal();
+                    openLoginModal();
+                  }}
+                  className="text-[#4a6fa5] hover:text-[#3a5a8c] font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                >
+                  Log In
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       )}
