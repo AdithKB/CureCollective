@@ -12,7 +12,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const BulkOrder = require('../models/BulkOrder');
 
-// Register a new user
+// Register a new user 1
 router.post('/register', async (req, res) => {
   try {
     console.log('Registration request received:', req.body);
