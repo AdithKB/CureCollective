@@ -12,27 +12,32 @@ import Community from './components/Community';
 import BulkOrder from './components/BulkOrder';
 import BulkOrderDemo from './components/BulkOrderDemo';
 import CommunityManage from './components/CommunityManage';
+import LoginSignup from './components/LoginSignup';
+import { AuthModalProvider } from './contexts/AuthModalContext';
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <Toaster position="top-right" />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/add-product" element={<AddProduct />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/create-community" element={<CreateCommunity />} />
-        <Route path="/communities" element={<Communities />} />
-        <Route path="/communities/:slug" element={<Community />} />
-        <Route path="/communities/:slug/manage" element={<CommunityManage />} />
-        <Route path="/communities/:slug/place-order" element={<BulkOrder />} />
-        <Route path="/products/:slug/order" element={<BulkOrder />} />
-        <Route path="/products/:productId/communities" element={<Communities />} />
-        <Route path="/bulk-order-demo" element={<BulkOrderDemo />} />
-        {/* Add more routes as needed */}
-      </Routes>
-    </Router>
+    <AuthModalProvider>
+      <Router>
+        <Toaster position="top-right" />
+        <LoginSignup />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/add-product" element={<AddProduct />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/create-community" element={<CreateCommunity />} />
+          <Route path="/communities" element={<Communities />} />
+          <Route path="/communities/:slug" element={<Community />} />
+          <Route path="/communities/:slug/manage" element={<CommunityManage />} />
+          <Route path="/communities/:slug/place-order" element={<BulkOrder />} />
+          <Route path="/products/:slug/order" element={<BulkOrder />} />
+          <Route path="/products/:productId/communities" element={<Communities />} />
+          <Route path="/bulk-order-demo" element={<BulkOrderDemo />} />
+          {/* Add more routes as needed */}
+        </Routes>
+      </Router>
+    </AuthModalProvider>
   );
 };
 

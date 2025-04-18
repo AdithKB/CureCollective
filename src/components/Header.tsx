@@ -2,16 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import UserMenu from './UserMenu';
 import { User } from '../types/index';
+import { useAuthModal } from '../contexts/AuthModalContext';
 
 interface HeaderProps {
   user: User | null;
   onLogout: () => void;
-  onLogin?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout, onLogin }) => {
+const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const { openModal } = useAuthModal();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,6 +31,11 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onLogin }) => {
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  const handleLoginClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    openModal(true);
   };
 
   return (
@@ -93,7 +100,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onLogin }) => {
             />
           ) : (
             <button
-              onClick={onLogin}
+              onClick={handleLoginClick}
               className="px-4 py-2 bg-[#4a6fa5] text-white rounded-md hover:bg-[#3a5a8c] transition-colors"
               data-testid="login-button"
             >
