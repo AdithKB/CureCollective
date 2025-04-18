@@ -12,7 +12,7 @@ import Community from './components/Community';
 import BulkOrder from './components/BulkOrder';
 import BulkOrderDemo from './components/BulkOrderDemo';
 import CommunityManage from './components/CommunityManage';
-import LoginSignup from './components/LoginSignup';
+import AuthModal from './components/AuthModal';
 import { AuthModalProvider } from './contexts/AuthModalContext';
 
 const App: React.FC = () => {
@@ -20,7 +20,7 @@ const App: React.FC = () => {
     <AuthModalProvider>
       <Router>
         <Toaster position="top-right" />
-        <LoginSignup />
+        <AuthModal />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/products" element={<Products />} />

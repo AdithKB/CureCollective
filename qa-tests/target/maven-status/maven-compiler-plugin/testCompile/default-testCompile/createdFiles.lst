@@ -1,0 +1,6 @@
+com\mycare\qa\config\TestBase.class
+com\mycare\qa\config\TestConfig.class
+com\mycare\qa\tests\NavigationTest.class
+com\mycare\qa\tests\HomePageTest.class
+com\mycare\qa\pages\HomePage.class
+com\mycare\qa\pages\NavigationPage.class

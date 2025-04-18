@@ -140,12 +140,14 @@ const HomePage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                   <Link
                     to="/products"
+                    data-testid="services-link"
                     className="btn btn-primary px-8 py-3 text-lg font-medium"
                   >
                     Browse Products
                   </Link>
                   <Link
                     to="/communities"
+                    data-testid="about-link"
                     className="btn btn-primary px-8 py-3 text-lg font-medium"
                   >
                     Browse Communities

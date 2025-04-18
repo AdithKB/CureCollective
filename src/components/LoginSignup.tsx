@@ -40,6 +40,7 @@ const LoginSignup: React.FC = () => {
   });
   const [loginError, setLoginError] = useState('');
   const [signupError, setSignupError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [passwordStrength, setPasswordStrength] = useState<'Weak' | 'Medium' | 'Strong' | null>(null);
 
   useEffect(() => {
@@ -71,10 +72,12 @@ const LoginSignup: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setSuccessMessage('');
 
     try {
       const response = await login(loginData.email, loginData.password);
       if (response.success) {
+        setSuccessMessage('Login successful!');
         toast.success('Login successful!');
         closeModal();
         // Refresh the page after successful login
@@ -90,6 +93,7 @@ const LoginSignup: React.FC = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignupError('');
+    setSuccessMessage('');
 
     // Validate password match
     if (formData.password !== formData.confirmPassword) {
@@ -104,34 +108,17 @@ const LoginSignup: React.FC = () => {
     }
 
     try {
-      console.log('Attempting registration with data:', {
-        name: formData.name,
-        email: formData.email,
-        country: formData.country,
-        passwordLength: formData.password.length
-      });
-
       const response = await register(formData);
-      console.log('Registration response:', response);
-
       if (response.success) {
+        setSuccessMessage('Registration successful! Please login.');
         toast.success('Registration successful!');
         closeModal();
         // Refresh the page after successful registration
         window.location.reload();
       } else {
-        // Log the full error response
-        console.error('Registration failed:', response);
-        setSignupError(response.error || 'Registration failed. Please try again.');
+        setSignupError(response.error || 'Registration failed');
       }
     } catch (err: any) {
-      // Log the full error object
-      console.error('Registration error:', err);
-      console.error('Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
       setSignupError(err.error || 'Failed to connect to the server. Please try again.');
     }
   };
@@ -205,6 +192,7 @@ const LoginSignup: React.FC = () => {
                   <input
                     type="text"
                     id="login-email"
+                    data-testid="email-input"
                     value={loginData.email}
                     onChange={(e) => handleLoginInputChange('email', e.target.value)}
                     className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
@@ -228,6 +216,7 @@ const LoginSignup: React.FC = () => {
                   <input
                     type="password"
                     id="login-password"
+                    data-testid="password-input"
                     value={loginData.password}
                     onChange={(e) => handleLoginInputChange('password', e.target.value)}
                     className="w-full px-4 py-2 pl-12 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent"
@@ -238,7 +227,7 @@ const LoginSignup: React.FC = () => {
               </div>
               
               {loginError && (
-                <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-lg mb-4 flex items-center animate-fade-in">
+                <div data-testid="error-message" className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-lg mb-4 flex items-center animate-fade-in">
                   <svg className="h-5 w-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -268,6 +257,7 @@ const LoginSignup: React.FC = () => {
               
               <button
                 type="submit"
+                data-testid="submit-button"
                 className="btn btn-primary w-full py-3 text-lg font-medium mt-6"
               >
                 Log In
@@ -300,6 +290,7 @@ const LoginSignup: React.FC = () => {
               <h2 className="text-lg font-bold text-gray-900">Create Account</h2>
               <button 
                 onClick={closeModal}
+                data-testid="close-modal-button"
                 className="text-gray-700 hover:text-gray-900 focus:outline-none transition-colors bg-gray-100 hover:bg-gray-200 rounded-full p-1"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -314,7 +305,7 @@ const LoginSignup: React.FC = () => {
             
             <form onSubmit={handleSignup} className="space-y-3">
               {signupError && (
-                <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-sm text-sm">
+                <div data-testid="error-message" className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-sm text-sm">
                   <div className="flex items-start">
                     <svg className="h-5 w-5 mr-2 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -412,6 +403,7 @@ const LoginSignup: React.FC = () => {
                   <input
                     type="password"
                     id="signup-password"
+                    data-testid="password-input"
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
                     className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
@@ -461,6 +453,7 @@ const LoginSignup: React.FC = () => {
                   <input
                     type="password"
                     id="signup-confirm-password"
+                    data-testid="confirm-password-input"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                     className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
@@ -469,6 +462,15 @@ const LoginSignup: React.FC = () => {
                   />
                 </div>
               </div>
+              
+              {successMessage && (
+                <div data-testid="success-message" className="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded shadow-lg mb-4 flex items-center animate-fade-in">
+                  <svg className="h-5 w-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {successMessage}
+                </div>
+              )}
               
               <button
                 type="submit"

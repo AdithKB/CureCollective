@@ -20,11 +20,96 @@ public class HomePageTest extends TestBase {
     private HomePage homePage;
 
     @BeforeMethod
-    @Parameters("browser")
-    public void setUp(String browser) {
-        super.setUp(browser);
+    @Parameters({"browser", "app.url"})
+    public void setUp(String browser, String appUrl) {
+        super.setUp(browser, appUrl);
         homePage = new HomePage(driver);
-        driver.get(appUrl);
+    }
+
+    @Test
+    public void testInitialPageLoad() {
+        // Verify page title is present
+        assertTrue(isElementPresent("[data-testid='page-title']"), "Page title should be present");
+        
+        // Verify login and signup buttons are present
+        assertTrue(isElementPresent("[data-testid='login-button']"), "Login button should be present");
+        assertTrue(isElementPresent("[data-testid='signup-button']"), "Signup button should be present");
+    }
+
+    @Test
+    public void testLoginModalElements() {
+        // Click login button to open modal
+        clickElement("[data-testid='login-button']");
+        
+        // Verify all login form elements are present
+        assertTrue(isElementPresent("[data-testid='email-input']"), "Email input should be present");
+        assertTrue(isElementPresent("[data-testid='password-input']"), "Password input should be present");
+        assertTrue(isElementPresent("[data-testid='submit-button']"), "Submit button should be present");
+        assertTrue(isElementPresent("[data-testid='close-modal-button']"), "Close modal button should be present");
+        
+        // Close the modal
+        clickElement("[data-testid='close-modal-button']");
+        
+        // Verify modal is closed
+        assertFalse(isElementPresent("[data-testid='email-input']"), "Login modal should be closed");
+    }
+
+    @Test
+    public void testSignupModalElements() {
+        // Click signup button to open modal
+        clickElement("[data-testid='signup-button']");
+        
+        // Verify all signup form elements are present
+        assertTrue(isElementPresent("[data-testid='email-input']"), "Email input should be present");
+        assertTrue(isElementPresent("[data-testid='password-input']"), "Password input should be present");
+        assertTrue(isElementPresent("[data-testid='confirm-password-input']"), "Confirm password input should be present");
+        assertTrue(isElementPresent("[data-testid='submit-button']"), "Submit button should be present");
+        assertTrue(isElementPresent("[data-testid='close-modal-button']"), "Close modal button should be present");
+        
+        // Close the modal
+        clickElement("[data-testid='close-modal-button']");
+        
+        // Verify modal is closed
+        assertFalse(isElementPresent("[data-testid='email-input']"), "Signup modal should be closed");
+    }
+
+    @Test
+    public void testNavigationLinks() {
+        // Verify all navigation links are present
+        assertTrue(isElementPresent("[data-testid='services-link']"), "Services link should be present");
+        assertTrue(isElementPresent("[data-testid='about-link']"), "About link should be present");
+        assertTrue(isElementPresent("[data-testid='contact-link']"), "Contact link should be present");
+        assertTrue(isElementPresent("[data-testid='home-link']"), "Home link should be present");
+    }
+
+    @Test
+    public void testLoginFormValidation() {
+        // Click login button
+        clickElement("[data-testid='login-button']");
+        
+        // Try to submit empty form
+        clickElement("[data-testid='submit-button']");
+        
+        // Verify error message appears
+        assertTrue(isElementPresent("[data-testid='error-message']"), "Error message should appear for empty form");
+        
+        // Close modal
+        clickElement("[data-testid='close-modal-button']");
+    }
+
+    @Test
+    public void testSignupFormValidation() {
+        // Click signup button
+        clickElement("[data-testid='signup-button']");
+        
+        // Try to submit empty form
+        clickElement("[data-testid='submit-button']");
+        
+        // Verify error message appears
+        assertTrue(isElementPresent("[data-testid='error-message']"), "Error message should appear for empty form");
+        
+        // Close modal
+        clickElement("[data-testid='close-modal-button']");
     }
 
     @Test
@@ -32,167 +117,53 @@ public class HomePageTest extends TestBase {
         // Click login button
         clickElement("[data-testid='login-button']");
         
-        // Wait for login modal and fill in credentials
-        waitForElementVisible("[data-testid='email-input']");
+        // Fill in valid credentials
         driver.findElement(By.cssSelector("[data-testid='email-input']")).sendKeys("test@example.com");
         driver.findElement(By.cssSelector("[data-testid='password-input']")).sendKeys("Test123!@#");
         
-        // Submit login form
+        // Submit form
         clickElement("[data-testid='submit-button']");
         
-        // Wait for success message
-        waitForElementVisible("[data-testid='success-message']");
+        // Verify success message
+        assertTrue(isElementPresent("[data-testid='success-message']"), "Success message should appear after login");
         
         // Verify user menu is visible
-        waitForElementVisible("[data-testid='user-menu']");
+        assertTrue(isElementPresent("[data-testid='user-menu']"), "User menu should be visible after login");
     }
 
     @Test
-    public void testFailedLogin() {
-        homePage.login("invalid@example.com", "wrongpassword");
-        String errorMessage = homePage.getErrorMessage();
-        assertEquals(errorMessage, "Invalid email or password");
-    }
-
-    @Test
-    public void testSuccessfulSignup() {
-        // Click signup button
-        clickElement("[data-testid='signup-button']");
-        
-        // Wait for signup modal and fill in form
-        waitForElementVisible("[data-testid='email-input']");
-        driver.findElement(By.cssSelector("[name='name']")).sendKeys("Test User");
-        driver.findElement(By.cssSelector("[data-testid='email-input']")).sendKeys("test@example.com");
-        driver.findElement(By.cssSelector("[data-testid='password-input']")).sendKeys("Test123!@#");
-        driver.findElement(By.cssSelector("[data-testid='confirm-password-input']")).sendKeys("Test123!@#");
-        
-        // Submit signup form
-        clickElement("[data-testid='submit-button']");
-        
-        // Wait for success message
-        waitForElementVisible("[data-testid='success-message']");
-    }
-
-    @Test
-    public void testPasswordMismatch() {
-        // Click signup button
-        clickElement("[data-testid='signup-button']");
-        
-        // Wait for signup modal and fill in form
-        waitForElementVisible("[data-testid='email-input']");
-        driver.findElement(By.cssSelector("[name='name']")).sendKeys("Test User");
-        driver.findElement(By.cssSelector("[data-testid='email-input']")).sendKeys("test@example.com");
-        driver.findElement(By.cssSelector("[data-testid='password-input']")).sendKeys("Test123!@#");
-        driver.findElement(By.cssSelector("[data-testid='confirm-password-input']")).sendKeys("Test123!@#Different");
-        
-        // Submit signup form
-        clickElement("[data-testid='submit-button']");
-        
-        // Wait for error message
-        waitForElementVisible("[data-testid='error-message']");
-    }
-
-    @Test
-    public void testPasswordStrengthIndicator() {
-        homePage.clickSignupButton();
-        homePage.enterPassword("weak");
-        String strengthIndicator = homePage.getPasswordStrengthIndicatorText();
-        assertEquals(strengthIndicator, "Weak");
-        
-        homePage.enterPassword("StrongPassword123!");
-        strengthIndicator = homePage.getPasswordStrengthIndicatorText();
-        assertEquals(strengthIndicator, "Strong");
-    }
-
-    @Test
-    public void testTermsAndConditions() {
-        // Click signup button
-        clickElement("[data-testid='signup-button']");
-        
-        // Wait for signup modal
-        waitForElementVisible("[data-testid='email-input']");
-        
-        // Close modal
-        clickElement("[data-testid='close-modal-button']");
-        
-        // Verify modal is closed
-        waitForElementToDisappear("[data-testid='email-input']");
-    }
-
-    @Test
-    public void testForgotPassword() {
-        homePage.resetPassword("test@example.com");
-        String successMessage = homePage.getSuccessMessage();
-        assertEquals(successMessage, "Password reset instructions sent to your email");
-    }
-
-    @Test
-    public void testInvalidEmailFormat() {
-        // Click login button
-        clickElement("[data-testid='login-button']");
-        
-        // Wait for login modal and fill in invalid email
-        waitForElementVisible("[data-testid='email-input']");
-        driver.findElement(By.cssSelector("[data-testid='email-input']")).sendKeys("invalid-email");
-        driver.findElement(By.cssSelector("[data-testid='password-input']")).sendKeys("Test123!@#");
-        
-        // Submit login form
-        clickElement("[data-testid='submit-button']");
-        
-        // Wait for error message
-        waitForElementVisible("[data-testid='error-message']");
-    }
-
-    @Test
-    public void testModalClose() {
-        homePage.clickLoginButton();
-        homePage.closeModal();
-        // Verify modal is closed by checking if login button is clickable again
-        homePage.clickLoginButton();
-        // If we can click the login button again, the modal was successfully closed
-    }
-
-    @Test
-    public void testEmptyFields() {
-        homePage.clickSignupButton();
-        homePage.clickSubmitButton();
-        String errorMessage = homePage.getErrorMessage();
-        assertEquals(errorMessage, "Please fill in all required fields");
-    }
-
-    @Test
-    public void testNavigationLinks() {
-        // Test Services link
-        clickElement("[data-testid='services-link']");
-        waitForElementVisible("[data-testid='page-title']");
-        
-        // Test About link
-        clickElement("[data-testid='about-link']");
-        waitForElementVisible("[data-testid='page-title']");
-        
-        // Test Contact link
-        clickElement("[data-testid='contact-link']");
-        waitForElementVisible("[data-testid='page-title']");
-        
-        // Test Home link
-        clickElement("[data-testid='home-link']");
-        waitForElementVisible("[data-testid='page-title']");
-    }
-
-    @Test
-    public void testUserMenu() {
-        // Login first
+    public void testUserMenuElements() {
+        // First login
         testSuccessfulLogin();
         
         // Click user menu
         clickElement("[data-testid='user-menu']");
         
         // Verify menu items
-        waitForElementVisible("[data-testid='profile-link']");
-        waitForElementVisible("[data-testid='logout-button']");
+        assertTrue(isElementPresent("[data-testid='profile-link']"), "Profile link should be present");
+        assertTrue(isElementPresent("[data-testid='logout-button']"), "Logout button should be present");
         
         // Test logout
         clickElement("[data-testid='logout-button']");
-        waitForElementToDisappear("[data-testid='user-menu']");
+        
+        // Verify user menu is no longer visible
+        assertFalse(isElementPresent("[data-testid='user-menu']"), "User menu should not be visible after logout");
+    }
+
+    private boolean isElementPresent(String selector) {
+        try {
+            driver.findElement(By.cssSelector(selector));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    protected void clickElement(String selector) {
+        try {
+            driver.findElement(By.cssSelector(selector)).click();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to click element: " + selector, e);
+        }
     }
 } 

@@ -15,52 +15,70 @@ import org.openqa.selenium.ElementClickInterceptedException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Parameters;
+import io.github.bonigarcia.wdm.WebDriverManager;
 
 import java.time.Duration;
 
 public class TestBase {
     protected WebDriver driver;
     protected WebDriverWait wait;
+    protected String appUrl;
 
     @BeforeMethod
-    @Parameters("browser")
-    public void setUp(String browser) {
-        if (browser.equalsIgnoreCase("chrome") || browser.equalsIgnoreCase("brave")) {
-            ChromeOptions options = new ChromeOptions();
-            if (browser.equalsIgnoreCase("brave")) {
-                options.setBinary("C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe");
+    @Parameters({"browser", "app.url"})
+    public void setUp(String browser, String appUrl) {
+        this.appUrl = appUrl;
+        
+        try {
+            if (browser.equalsIgnoreCase("chrome") || browser.equalsIgnoreCase("brave")) {
+                WebDriverManager.chromedriver().setup();
+                ChromeOptions options = new ChromeOptions();
+                if (browser.equalsIgnoreCase("brave")) {
+                    options.setBinary("C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe");
+                }
+                options.addArguments("--start-maximized");
+                options.addArguments("--disable-notifications");
+                options.addArguments("--disable-popup-blocking");
+                driver = new ChromeDriver(options);
+            } else if (browser.equalsIgnoreCase("firefox")) {
+                WebDriverManager.firefoxdriver().setup();
+                FirefoxOptions options = new FirefoxOptions();
+                options.addArguments("--start-maximized");
+                driver = new FirefoxDriver(options);
+            } else if (browser.equalsIgnoreCase("edge")) {
+                WebDriverManager.edgedriver().setup();
+                EdgeOptions options = new EdgeOptions();
+                options.addArguments("--start-maximized");
+                driver = new EdgeDriver(options);
+            } else {
+                throw new IllegalArgumentException("Unsupported browser: " + browser);
             }
-            options.addArguments("--start-maximized");
-            options.addArguments("--disable-notifications");
-            options.addArguments("--disable-popup-blocking");
-            driver = new ChromeDriver(options);
-        } else if (browser.equalsIgnoreCase("firefox")) {
-            FirefoxOptions options = new FirefoxOptions();
-            options.addArguments("--start-maximized");
-            driver = new FirefoxDriver(options);
-        } else if (browser.equalsIgnoreCase("edge")) {
-            EdgeOptions options = new EdgeOptions();
-            options.addArguments("--start-maximized");
-            driver = new EdgeDriver(options);
-        }
 
-        // Increase wait time to 20 seconds
-        wait = new WebDriverWait(driver, Duration.ofSeconds(20));
-        
-        // Set implicit wait to 10 seconds
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-        
-        // Maximize window
-        driver.manage().window().maximize();
-        
-        // Navigate to the application
-        driver.get("http://localhost:3000");
+            // Increase wait time to 20 seconds
+            wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+            
+            // Set implicit wait to 10 seconds
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+            
+            // Maximize window
+            driver.manage().window().maximize();
+            
+            // Navigate to the application
+            driver.get(appUrl);
+        } catch (Exception e) {
+            System.err.println("Failed to initialize WebDriver: " + e.getMessage());
+            throw e;
+        }
     }
 
     @AfterMethod
     public void tearDown() {
         if (driver != null) {
-            driver.quit();
+            try {
+                driver.quit();
+            } catch (Exception e) {
+                System.err.println("Failed to quit WebDriver: " + e.getMessage());
+            }
         }
     }
 
@@ -68,7 +86,10 @@ public class TestBase {
         try {
             wait.until(ExpectedConditions.visibilityOfElementLocated(org.openqa.selenium.By.cssSelector(locator)));
         } catch (TimeoutException e) {
-            System.out.println("Element not visible: " + locator);
+            System.err.println("Element not visible after timeout: " + locator);
+            throw e;
+        } catch (Exception e) {
+            System.err.println("Error waiting for element visibility: " + locator);
             throw e;
         }
     }
@@ -77,7 +98,10 @@ public class TestBase {
         try {
             wait.until(ExpectedConditions.elementToBeClickable(org.openqa.selenium.By.cssSelector(locator)));
         } catch (TimeoutException e) {
-            System.out.println("Element not clickable: " + locator);
+            System.err.println("Element not clickable after timeout: " + locator);
+            throw e;
+        } catch (Exception e) {
+            System.err.println("Error waiting for element to be clickable: " + locator);
             throw e;
         }
     }
@@ -87,10 +111,18 @@ public class TestBase {
             waitForElementClickable(locator);
             driver.findElement(org.openqa.selenium.By.cssSelector(locator)).click();
         } catch (ElementClickInterceptedException e) {
-            System.out.println("Element click intercepted: " + locator);
+            System.err.println("Element click intercepted: " + locator);
             // Try JavaScript click as fallback
-            org.openqa.selenium.JavascriptExecutor executor = (org.openqa.selenium.JavascriptExecutor) driver;
-            executor.executeScript("arguments[0].click();", driver.findElement(org.openqa.selenium.By.cssSelector(locator)));
+            try {
+                org.openqa.selenium.JavascriptExecutor executor = (org.openqa.selenium.JavascriptExecutor) driver;
+                executor.executeScript("arguments[0].click();", driver.findElement(org.openqa.selenium.By.cssSelector(locator)));
+            } catch (Exception jsException) {
+                System.err.println("JavaScript click also failed: " + jsException.getMessage());
+                throw jsException;
+            }
+        } catch (Exception e) {
+            System.err.println("Error clicking element: " + locator);
+            throw e;
         }
     }
 
@@ -98,7 +130,10 @@ public class TestBase {
         try {
             wait.until(ExpectedConditions.invisibilityOfElementLocated(org.openqa.selenium.By.cssSelector(locator)));
         } catch (TimeoutException e) {
-            System.out.println("Element did not disappear: " + locator);
+            System.err.println("Element did not disappear after timeout: " + locator);
+            throw e;
+        } catch (Exception e) {
+            System.err.println("Error waiting for element to disappear: " + locator);
             throw e;
         }
     }

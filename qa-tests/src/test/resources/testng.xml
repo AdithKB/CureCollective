@@ -2,9 +2,16 @@
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
 <suite name="MyCare Test Suite">
     <parameter name="browser" value="brave"/>
-    <test name="MyCare Tests">
+    <parameter name="app.url" value="http://localhost:3000"/>
+    
+    <test name="HomePage Tests">
         <classes>
             <class name="com.mycare.qa.tests.HomePageTest"/>
+        </classes>
+    </test>
+    
+    <test name="Navigation Tests">
+        <classes>
             <class name="com.mycare.qa.tests.NavigationTest"/>
         </classes>
     </test>
