@@ -107,6 +107,7 @@ router.post('/', auth, async (req, res) => {
                 };
             }),
             status: 'pending',
+            paymentMethod: req.body.paymentMethod || 'cod', // Default to COD if not specified
             total: products.reduce((sum, p) => {
                 const product = productDocs.find(doc => doc._id.toString() === p.productId);
                 const quantity = p.initialQuantity || 1;

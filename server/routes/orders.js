@@ -7,7 +7,7 @@ const Product = require('../models/Product');
 // Create a new order
 router.post('/', auth, async (req, res) => {
   try {
-    const { type, community, items } = req.body;
+    const { type, community, items, paymentMethod } = req.body;
     
     // Check for mandatory user details
     const missingFields = [];
@@ -38,6 +38,7 @@ router.post('/', auth, async (req, res) => {
       community,
       items,
       status: 'pending',
+      paymentMethod: paymentMethod || 'cod', // Default to COD if not specified
       total: items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     });
 

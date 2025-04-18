@@ -111,11 +111,15 @@ const Communities: React.FC = () => {
     }
     
     // Apply membership filter
-    if (filters.membership) {
+    if (filters.membership && authUser) {
       results = results.filter(community => {
         if (filters.membership === 'joined') {
-          return community.members?.some((member: User) => member._id === authUser?._id);
+          // Check if the user is a member of this community
+          return community.members && community.members.some(member => 
+            member._id === authUser._id
+          );
         } else if (filters.membership === 'requested') {
+          // Check if the user has a pending join request for this community
           return community.privacy === 'private' && pendingRequests[community._id] === true;
         }
         return true;
@@ -425,12 +429,18 @@ const Communities: React.FC = () => {
                   {(isMember || hasRequested) && (
                     <div className="absolute top-4 right-4">
                       {isMember && (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
                           Member
                         </span>
                       )}
                       {hasRequested && !isMember && (
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                          </svg>
                           Requested
                         </span>
                       )}

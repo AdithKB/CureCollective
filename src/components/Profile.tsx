@@ -9,6 +9,8 @@ import Header from './Header';
 import Footer from './Footer';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import toast from '../utils/toast';
+import AlternativePayment from './AlternativePayment';
+import WalletPayment from './WalletPayment';
 
 interface Community {
   _id: string;
@@ -113,6 +115,8 @@ const Profile: React.FC = () => {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [showAlternativePayment, setShowAlternativePayment] = useState(false);
+  const [showWalletPayment, setShowWalletPayment] = useState(false);
 
   // List of countries for the dropdown
   const countries = [
@@ -312,6 +316,7 @@ const Profile: React.FC = () => {
     try {
       const response = await authService.updateProfile({
         name: formData.name,
+        email: formData.email,
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
         phone: formData.phone,
@@ -326,14 +331,12 @@ const Profile: React.FC = () => {
         // Refresh user data after successful update
         const profileResponse = await authService.getProfile();
         if (profileResponse.success && profileResponse.user) {
+          // Update the user state in localStorage
+          localStorage.setItem('user', JSON.stringify(profileResponse.user));
+          
           // Update the user state in the auth context
           if (user) {
-            user.name = profileResponse.user.name;
-            user.email = profileResponse.user.email;
-            user.phone = profileResponse.user.phone;
-            user.address = profileResponse.user.address;
-            user.country = profileResponse.user.country;
-            user.pincode = profileResponse.user.pincode;
+            Object.assign(user, profileResponse.user);
           }
           
           // Reset password fields
@@ -407,20 +410,28 @@ const Profile: React.FC = () => {
         // Find the order to get its total amount
         const deletedOrder = orders.find(order => order._id === orderId);
         if (deletedOrder) {
-          // Get current wallet balance
-          const currentBalance = parseFloat(localStorage.getItem('walletBalance') || '0');
-          // Add the order total back to the wallet
-          const newBalance = currentBalance + deletedOrder.total;
-          // Update wallet balance in localStorage
-          localStorage.setItem('walletBalance', newBalance.toString());
-          // Update the wallet balance state if we're on the wallet tab
-          if (activeTab === 'wallet') {
-            setWalletBalance(newBalance);
+          // Use walletService to add the refund to the wallet in the database
+          const refundResponse = await walletService.addMoney(deletedOrder.total);
+          
+          if (refundResponse.success) {
+            // Update the wallet balance state with the new balance from the server
+            setWalletBalance(refundResponse.data.newBalance);
+            
+            // Show success message with refund amount
+            setSuccess(`Order deleted successfully. ₹${deletedOrder.total.toFixed(2)} has been refunded to your wallet.`);
+            
+            // Update orders list
+            setOrders(orders.filter(order => order._id !== orderId));
+            setDeleteOrderId(null);
+            
+            // Force a refresh of the wallet balance if on the wallet tab
+            if (activeTab === 'wallet') {
+              fetchWalletBalance();
+            }
+          } else {
+            setOrdersError('Failed to process refund. Please contact support.');
           }
         }
-        setOrders(orders.filter(order => order._id !== orderId));
-        setDeleteOrderId(null);
-        setSuccess('Order deleted successfully and amount credited back to wallet');
       } else {
         setOrdersError(response.error || MESSAGES.ERRORS.GENERIC_ERROR);
       }
@@ -464,9 +475,10 @@ const Profile: React.FC = () => {
       return;
     }
 
-    setIsAddingMoney(true);
-    setWalletError(null);
+    setShowWalletPayment(true);
+  };
 
+  const handleWalletPaymentComplete = async () => {
     try {
       const amount = parseFloat(addAmount);
       const response = await walletService.addMoney(amount);
@@ -483,7 +495,7 @@ const Profile: React.FC = () => {
       console.error('Error adding money:', error);
       setWalletError('Failed to add money to wallet');
     } finally {
-      setIsAddingMoney(false);
+      setShowWalletPayment(false);
     }
   };
 
@@ -506,8 +518,8 @@ const Profile: React.FC = () => {
       const response = await walletService.withdrawMoney(amount);
       
       if (response.success) {
-        setWalletBalance(response.data.newBalance);
-        localStorage.setItem('walletBalance', response.data.newBalance.toString());
+        // Fetch the latest balance from the server
+        await fetchWalletBalance();
         setWithdrawAmount('');
         toast.success('Money withdrawn successfully');
       } else {
@@ -616,12 +628,15 @@ const Profile: React.FC = () => {
       const walletBalance = savedBalance ? parseFloat(savedBalance) : 0;
       const totalAmount = calculateCartTotal();
 
-      // Check if wallet has sufficient balance
-      if (walletBalance < totalAmount) {
-        setError(`Insufficient wallet balance. Required: ₹${totalAmount.toFixed(2)}, Available: ₹${walletBalance.toFixed(2)}`);
-        return;
-      }
+      // Always show payment options
+      setShowAlternativePayment(true);
+    } catch (error) {
+      setError('An error occurred while processing your order');
+    }
+  };
 
+  const handleAlternativePaymentComplete = async () => {
+    try {
       // Create order items from cart
       const orderItems = cartItems.map(item => ({
         product: item.product._id,
@@ -633,10 +648,6 @@ const Profile: React.FC = () => {
       const response = await orderService.createDirectOrder(orderItems);
 
       if (response.success) {
-        // Deduct amount from wallet
-        const newBalance = walletBalance - totalAmount;
-        localStorage.setItem('walletBalance', newBalance.toString());
-        
         // Clear the cart
         setCartItems([]);
         localStorage.removeItem('cart');
@@ -652,9 +663,10 @@ const Profile: React.FC = () => {
       } else {
         setError(response.error || 'Failed to place order');
       }
-    } catch (err) {
-      console.error('Error creating order:', err);
-      setError('An error occurred while placing your order');
+    } catch (error) {
+      setError('An error occurred while processing your order');
+    } finally {
+      setShowAlternativePayment(false);
     }
   };
 
@@ -1509,6 +1521,22 @@ const Profile: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {showAlternativePayment && (
+          <AlternativePayment
+            totalAmount={calculateCartTotal()}
+            onPaymentComplete={handleAlternativePaymentComplete}
+            onCancel={() => setShowAlternativePayment(false)}
+          />
+        )}
+
+        {showWalletPayment && (
+          <WalletPayment
+            amount={parseFloat(addAmount)}
+            onPaymentComplete={handleWalletPaymentComplete}
+            onCancel={() => setShowWalletPayment(false)}
+          />
         )}
 
         <Footer />

@@ -48,6 +48,11 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'processing', 'completed', 'cancelled'],
     default: 'pending'
   },
+  paymentMethod: {
+    type: String,
+    enum: ['upi', 'card', 'netbanking', 'wallet', 'cod'],
+    default: 'cod'
+  },
   total: {
     type: Number,
     required: true

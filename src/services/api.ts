@@ -5,7 +5,8 @@ import { MESSAGES } from '../constants';
 
 interface RegisterData {
   name: string;
-  email: string;
+  email?: string;
+  phone?: string;
   password: string;
   country: string;
 }
@@ -53,7 +54,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
-    // Return the error response data directly
+    // Return the error response data directly without wrapping
     return Promise.reject(error.response?.data || error);
   }
 );
@@ -64,38 +65,43 @@ export const authService = {
       const response = await api.post('/auth/login', credentials);
       return response.data;
     } catch (err: any) {
-      // The error response will already have the correct structure
+      // Return the error response directly
       return err;
     }
   },
 
   register: async (userData: RegisterData): Promise<ServerResponse> => {
     try {
-      const response = await api.post<ServerResponse>('/auth/register', userData);
+      // Ensure we're sending the correct data format
+      const registrationData = {
+        ...userData,
+        // If email is a phone number, move it to the phone field
+        ...(userData.email && /^\d+$/.test(userData.email) 
+          ? { phone: userData.email, email: undefined }
+          : {})
+      };
+
+      console.log('Sending registration data:', registrationData);
+      const response = await api.post<ServerResponse>('/auth/register', registrationData);
+      console.log('Registration response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Registration error:', error);
-      
-      // If the error response has the expected format, return it directly
-      if (error.response?.data && typeof error.response.data === 'object') {
+      // If we have a response from the server, use its error message
+      if (error.response?.data) {
+        return error.response.data;
+      }
+      // If we have an error message but no response, use that
+      if (error.message) {
         return {
           success: false,
-          error: error.response.data.error || error.response.data.message || 'Registration failed'
+          error: error.message
         };
       }
-      
-      // If it's a string error message, use it directly
-      if (typeof error === 'string') {
-        return {
-          success: false,
-          error: error
-        };
-      }
-      
-      // For other error types, provide a generic message
+      // Default error message
       return {
         success: false,
-        error: error.message || 'Failed to register. Please try again.'
+        error: 'Failed to connect to the server. Please check your internet connection and try again.'
       };
     }
   },
@@ -347,7 +353,7 @@ export const communityService = {
 };
 
 export const orderService = {
-  createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier; additionalDiscount?: number }>) => {
+  createBulkOrder: async (communityId: string, items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier; additionalDiscount?: number }>, paymentMethod?: string) => {
     try {
       // Create a single bulk order with all products
       const response = await api.post('/bulk-orders', {
@@ -356,7 +362,8 @@ export const orderService = {
           targetQuantity: item.quantity,
           initialQuantity: item.quantity
         })),
-        community: communityId
+        community: communityId,
+        paymentMethod
       });
       
       // Dispatch custom event to notify Profile component to refresh orders
@@ -413,7 +420,7 @@ export const orderService = {
     }
   },
 
-  createDirectOrder: async (items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier }>) => {
+  createDirectOrder: async (items: Array<{ product: string; quantity: number; price: number; pricingTier?: PricingTier }>, paymentMethod?: string) => {
     try {
       console.log('Creating direct order with data:', {
         type: 'direct',
@@ -422,7 +429,8 @@ export const orderService = {
           quantity: item.quantity,
           price: item.price,
           pricingTier: item.pricingTier
-        }))
+        })),
+        paymentMethod
       });
 
       const response = await api.post('/orders', {
@@ -432,7 +440,8 @@ export const orderService = {
           quantity: item.quantity,
           price: item.price,
           pricingTier: item.pricingTier
-        }))
+        })),
+        paymentMethod
       });
 
       console.log('Order creation response:', response.data);

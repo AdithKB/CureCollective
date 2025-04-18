@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { productService, orderService, communityService } from '../services/api';
+import { productService, orderService, communityService, walletService } from '../services/api';
 import { Product, User, PricingTier, PricingTierData, Order, BulkOrderProduct, Community } from '../types/index';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
@@ -8,6 +8,7 @@ import Footer from './Footer';
 import { MESSAGES } from '../constants';
 import { calculatePrice, processOrder } from '../utils/bulkOrder';
 import bulkOrderManager from '../services/bulkOrderManager';
+import AlternativePayment from './AlternativePayment';
 
 interface OrderItem {
   productId: string;
@@ -36,6 +37,10 @@ const BulkOrder: React.FC = () => {
   const [communityOrders, setCommunityOrders] = useState<Order[]>([]);
   const [productOrderCounts, setProductOrderCounts] = useState<Record<string, number>>({});
   const isCommunityOrder = location.pathname.includes('/communities/');
+  const [showAlternativePayment, setShowAlternativePayment] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('wallet');
+  const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -233,6 +238,25 @@ const BulkOrder: React.FC = () => {
     fetchData();
   }, [slug, location.pathname]);
 
+  // Fetch wallet balance from server when component mounts
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      try {
+        const response = await walletService.getBalance();
+        if (response && response.balance !== undefined) {
+          setWalletBalance(response.balance);
+          localStorage.setItem('walletBalance', response.balance.toString());
+        } else {
+          console.error('Invalid response format from wallet balance API:', response);
+        }
+      } catch (err) {
+        console.error('Error fetching wallet balance:', err);
+      }
+    };
+
+    fetchWalletBalance();
+  }, []);
+
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     setOrderItems(prevItems => {
       return prevItems.map(item => {
@@ -317,58 +341,60 @@ const BulkOrder: React.FC = () => {
         return sum + (price * item.quantity);
       }, 0);
 
-      // Get wallet balance from localStorage
-      const savedBalance = localStorage.getItem('walletBalance');
-      const walletBalance = savedBalance ? parseFloat(savedBalance) : 0;
+      // Always show payment options
+      setShowAlternativePayment(true);
+    } catch (error) {
+      setError('An error occurred while processing your order');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      // Check if wallet has sufficient balance
-      if (walletBalance < totalAmount) {
-        setError(`Insufficient wallet balance. Required: ₹${totalAmount.toFixed(2)}, Available: ₹${walletBalance.toFixed(2)}`);
+  const handleAlternativePaymentComplete = async (paymentMethod: string) => {
+    try {
+      // Calculate total order amount
+      const totalAmount = orderItems.reduce((total, item) => {
+        const batchStatus = bulkOrderManager.getBatchStatus(item.productId);
+        const price = batchStatus ? batchStatus.currentPrice : item.price;
+        return total + (price * item.quantity);
+      }, 0);
+      
+      // Validate that the total amount is greater than 0
+      if (totalAmount <= 0) {
+        setError('Order amount must be greater than 0');
         return;
       }
       
+      // Note: Wallet withdrawal is now handled in the AlternativePayment component
+      // We don't need to withdraw money again here
+      
+      // Map orderItems to the format expected by the API
+      const formattedOrderItems = orderItems.map(item => ({
+        product: item.productId,
+        quantity: item.quantity,
+        price: item.price
+      }));
+      
       // Create the order using the bulk order manager
-      const orderItemsForApi = itemsToOrder.map(item => {
-        // Get the batch status for this product
-        const batchStatus = bulkOrderManager.getBatchStatus(item.productId);
-        
-        // Check if the current user is the top contributor
-        const isTopContributor = batchStatus?.topContributor?.userId === authUser?._id;
-        const additionalDiscount = isTopContributor ? batchStatus?.topContributor?.additionalDiscount || 0 : 0;
-        
-        return {
-          product: item.productId,
-          quantity: item.quantity,
-          price: batchStatus ? batchStatus.currentPrice : item.price,
-          additionalDiscount: additionalDiscount
-        };
-      });
+      const orderData = {
+        items: formattedOrderItems,
+        totalAmount,
+        paymentMethod,
+        communityId: community?._id || undefined,
+        isCommunityOrder: !!community
+      };
       
       let response;
       
-      // Handle different order types
-      if (isCommunityOrder) {
-        // Community order
-        const communityId = community?._id;
-        
-        if (!communityId) {
-          setError('Community ID is missing');
-          return;
-        }
-        
+      if (community?._id) {
         // Submit the order to the API for community order
-        response = await orderService.createBulkOrder(communityId, orderItemsForApi);
+        response = await orderService.createBulkOrder(community._id, orderData.items, paymentMethod);
       } else {
-        // Direct purchase
         // Submit the order to the API for direct purchase
-        response = await orderService.createDirectOrder(orderItemsForApi);
+        response = await orderService.createDirectOrder(orderData.items, paymentMethod);
       }
-      
+
       if (response.success) {
-        // Order was successful
-        const newBalance = walletBalance - totalAmount;
-        localStorage.setItem('walletBalance', newBalance.toString());
-        
         // Show success message
         alert('Order placed successfully!');
         
@@ -378,17 +404,11 @@ const BulkOrder: React.FC = () => {
         // Set the error message from the response
         setError(response.error || 'An error occurred while submitting your order');
       }
-    } catch (err: any) {
-      console.error('Error submitting order:', err);
-      // If there's a response from the server, use its message
-      if (err.response?.data) {
-        const serverError = err.response.data;
-        setError(serverError.error || serverError.message || 'An error occurred while submitting your order');
-      } else {
-        setError(err.message || 'An error occurred while submitting your order');
-      }
+    } catch (error) {
+      setError('An error occurred while processing your order');
     } finally {
       setSubmitting(false);
+      setShowAlternativePayment(false);
     }
   };
 
@@ -458,7 +478,7 @@ const BulkOrder: React.FC = () => {
               <div className="text-right">
                 <p className="text-sm text-gray-600">Wallet Balance</p>
                 <p className="text-lg font-semibold text-[#4a6fa5]">
-                  ₹{localStorage.getItem('walletBalance') ? parseFloat(localStorage.getItem('walletBalance')!).toFixed(2) : '0.00'}
+                  ₹{walletBalance.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -620,6 +640,18 @@ const BulkOrder: React.FC = () => {
       </main>
 
       <Footer />
+
+      {showAlternativePayment && (
+        <AlternativePayment
+          totalAmount={orderItems.reduce((total, item) => {
+            const batchStatus = bulkOrderManager.getBatchStatus(item.productId);
+            const price = batchStatus ? batchStatus.currentPrice : item.price;
+            return total + (price * item.quantity);
+          }, 0)}
+          onPaymentComplete={handleAlternativePaymentComplete}
+          onCancel={() => setShowAlternativePayment(false)}
+        />
+      )}
     </div>
   );
 };

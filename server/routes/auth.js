@@ -12,121 +12,153 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const BulkOrder = require('../models/BulkOrder');
 
-// Register a new user 1
+// Register a new user
 router.post('/register', async (req, res) => {
   try {
     console.log('Registration request received:', req.body);
     
-    const { name, email, password, country } = req.body;
+    const { name, email, phone, password, country } = req.body;
 
     // Validate required fields
-    if (!name || !email || !password || !country) {
-      console.log('Missing required fields:', { name, email, password, country });
+    if (!name || !password || !country) {
+      console.log('Missing required fields:', { name, password, country });
       return res.status(400).json({
         success: false,
-        error: 'All fields are required'
+        error: 'Name, password, and country are required'
       });
     }
 
-    // Check if the email is actually a phone number
-    const isPhoneNumber = /^\d+$/.test(email);
-    const phone = isPhoneNumber ? email : null;
-    const emailAddress = isPhoneNumber ? null : email.toLowerCase();
-
-    console.log('Processed registration data:', { 
-      name, 
-      email, 
-      isPhoneNumber, 
-      phone, 
-      emailAddress, 
-      country 
-    });
-
     // Validate that at least one of email or phone is provided
-    if (!emailAddress && !phone) {
-      console.log('No valid email or phone provided');
+    if (!email && !phone) {
+      console.log('No email or phone provided');
       return res.status(400).json({
         success: false,
         error: 'Either email or phone number is required'
       });
     }
 
+    // Validate password length
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters long'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      $or: [
+        ...(email ? [{ email: email.toLowerCase() }] : []),
+        ...(phone ? [{ phone: phone }] : [])
+      ]
+    });
+    
+    console.log('Existing user check:', existingUser ? 'Found' : 'Not found');
+    
+    if (existingUser) {
+      console.log('User already exists:', existingUser);
+      return res.status(400).json({
+        success: false,
+        error: existingUser.email === email 
+          ? 'An account with this email already exists' 
+          : 'An account with this phone number already exists'
+      });
+    }
+
+    // Hash password
+    console.log('Hashing password...');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    console.log('Password hashed successfully');
+
+    // Create new user
+    console.log('Creating new user object...');
+    const userData = {
+      name,
+      password: hashedPassword,
+      country
+    };
+
+    // Only set email or phone, not both
+    if (phone) {
+      userData.phone = phone;
+    } else {
+      userData.email = email.toLowerCase();
+    }
+
+    console.log('User data before creating User model:', userData);
+    
+    const newUser = new User(userData);
+    console.log('New user object created:', newUser);
+
+    // Save user to database
+    console.log('Saving user to database...');
     try {
-      // Check if user already exists - using case-insensitive search
-      const existingUser = await User.findOne({
-        $or: [
-          ...(emailAddress ? [{ email: { $regex: new RegExp(`^${emailAddress}$`, 'i') } }] : []),
-          ...(phone ? [{ phone: phone }] : [])
-        ]
-      });
-      
-      console.log('Existing user check:', existingUser ? 'Found' : 'Not found');
-      
-      if (existingUser) {
-        console.log('User already exists:', existingUser);
-        return res.status(400).json({
-          success: false,
-          error: existingUser.email === emailAddress 
-            ? 'An account with this email already exists' 
-            : 'An account with this phone number already exists'
-        });
-      }
-
-      // Hash password
-      console.log('Hashing password...');
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      console.log('Password hashed successfully');
-
-      // Create new user
-      console.log('Creating new user object...');
-      const newUser = new User({
-        name,
-        email: emailAddress,
-        phone: phone,
-        password: hashedPassword,
-        country
-      });
-
-      console.log('New user object created:', { 
-        name, 
-        email: emailAddress, 
-        phone, 
-        country 
-      });
-
-      // Save user to database
-      console.log('Saving user to database...');
       await newUser.save();
       console.log('User saved successfully');
-
-      // Create JWT token
-      console.log('Creating JWT token...');
-      const token = jwt.sign(
-        { id: newUser._id },
-        process.env.JWT_SECRET || 'mycare_secret_key',
-        { expiresIn: '1d' }
-      );
-      console.log('JWT token created successfully');
-
-      res.status(201).json({
-        success: true,
-        token,
-        user: {
-          id: newUser._id,
-          name: newUser.name,
-          email: newUser.email,
-          phone: newUser.phone,
-          country: newUser.country
-        }
-      });
-    } catch (dbError) {
-      console.error('Database operation error:', dbError);
-      throw dbError;
+    } catch (saveError) {
+      console.error('Error saving user to database:', saveError);
+      console.error('Validation errors:', newUser.errors);
+      
+      // Handle validation errors
+      if (saveError.name === 'ValidationError') {
+        const errors = Object.values(saveError.errors).map(err => err.message);
+        return res.status(400).json({
+          success: false,
+          error: errors.join(', ')
+        });
+      }
+      
+      // Handle duplicate key errors
+      if (saveError.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          error: 'An account with this email or phone number already exists'
+        });
+      }
+      
+      throw saveError;
     }
+
+    // Create JWT token
+    console.log('Creating JWT token...');
+    const token = jwt.sign(
+      { id: newUser._id },
+      process.env.JWT_SECRET || 'mycare_secret_key',
+      { expiresIn: '1d' }
+    );
+    console.log('JWT token created successfully');
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        country: newUser.country
+      }
+    });
   } catch (error) {
     console.error('Registration error:', error);
     console.error('Error stack:', error.stack);
+    
+    // Handle specific error types
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid registration data. Please check your input and try again.'
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email or phone number already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       error: 'Server error during registration. Please try again.'

@@ -91,21 +91,48 @@ const LoginSignup: React.FC = () => {
     e.preventDefault();
     setSignupError('');
 
+    // Validate password match
     if (formData.password !== formData.confirmPassword) {
       setSignupError('Passwords do not match');
       return;
     }
 
+    // Validate password strength
+    if (passwordStrength === 'Weak') {
+      setSignupError('Please choose a stronger password');
+      return;
+    }
+
     try {
+      console.log('Attempting registration with data:', {
+        name: formData.name,
+        email: formData.email,
+        country: formData.country,
+        passwordLength: formData.password.length
+      });
+
       const response = await register(formData);
+      console.log('Registration response:', response);
+
       if (response.success) {
-        toast.success('Registration successful! Please login.');
+        toast.success('Registration successful!');
         closeModal();
+        // Refresh the page after successful registration
+        window.location.reload();
       } else {
-        setSignupError(response.error || 'Registration failed');
+        // Log the full error response
+        console.error('Registration failed:', response);
+        setSignupError(response.error || 'Registration failed. Please try again.');
       }
     } catch (err: any) {
-      setSignupError(err.message || 'An error occurred');
+      // Log the full error object
+      console.error('Registration error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      setSignupError(err.error || 'Failed to connect to the server. Please try again.');
     }
   };
 
@@ -268,29 +295,44 @@ const LoginSignup: React.FC = () => {
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto"
           onClick={handleBackdropClick}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 my-8 animate-fade-in">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Create Your Account</h2>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 my-4 animate-fade-in">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-bold text-gray-900">Create Account</h2>
               <button 
                 onClick={closeModal}
                 className="text-gray-700 hover:text-gray-900 focus:outline-none transition-colors bg-gray-100 hover:bg-gray-200 rounded-full p-1"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">Join our community to access affordable healthcare products.</p>
+            <div className="mb-3">
+              <p className="text-xs text-gray-600">Join our community to access affordable healthcare products.</p>
             </div>
             
-            <form onSubmit={handleSignup} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-3">
+              {signupError && (
+                <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-sm text-sm">
+                  <div className="flex items-start">
+                    <svg className="h-5 w-5 mr-2 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-medium">Registration Error</p>
+                      <p className="mt-1">{signupError}</p>
+                      {signupError.includes('already exists')}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div>
-                <label htmlFor="signup-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label htmlFor="signup-name" className="block text-xs font-medium text-gray-700 mb-0.5">Full Name</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
@@ -299,7 +341,7 @@ const LoginSignup: React.FC = () => {
                     id="signup-name"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
+                    className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
                     placeholder="Enter your full name"
                     required
                   />
@@ -307,10 +349,10 @@ const LoginSignup: React.FC = () => {
               </div>
               
               <div>
-                <label htmlFor="signup-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <label htmlFor="signup-country" className="block text-xs font-medium text-gray-700 mb-0.5">Country</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
@@ -318,7 +360,7 @@ const LoginSignup: React.FC = () => {
                     id="signup-country"
                     value={formData.country}
                     onChange={(e) => handleInputChange('country', e.target.value)}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent appearance-none bg-white text-sm"
+                    className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent appearance-none bg-white text-sm"
                     required
                   >
                     <option value="">Select your country</option>
@@ -328,8 +370,8 @@ const LoginSignup: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -337,12 +379,12 @@ const LoginSignup: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">
                   Email or Phone Number
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                     </svg>
                   </div>
@@ -351,19 +393,19 @@ const LoginSignup: React.FC = () => {
                     placeholder="Enter email or phone number"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-0.5 text-xs text-gray-500">
                   You can use either your email address or phone number to sign up
                 </p>
               </div>
               
               <div>
-                <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label htmlFor="signup-password" className="block text-xs font-medium text-gray-700 mb-0.5">Password</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </div>
@@ -372,15 +414,15 @@ const LoginSignup: React.FC = () => {
                     id="signup-password"
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
+                    className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
                     placeholder="Create a strong password"
                     required
                   />
                 </div>
                 
                 {passwordStrength && (
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between mb-1">
+                  <div className="mt-1">
+                    <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs text-gray-500">Password strength:</span>
                       <span className={`text-xs font-medium ${
                         passwordStrength === 'Weak' ? 'text-red-500' : 
@@ -390,7 +432,7 @@ const LoginSignup: React.FC = () => {
                         {passwordStrength}
                       </span>
                     </div>
-                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all duration-300 ${
                           passwordStrength === 'Weak' ? 'bg-red-500 w-1/3' : 
@@ -399,7 +441,7 @@ const LoginSignup: React.FC = () => {
                         }`}
                       ></div>
                     </div>
-                    <div className="mt-1 text-xs text-gray-500">
+                    <div className="mt-0.5 text-xs text-gray-500">
                       {passwordStrength === 'Weak' && 'Use at least 8 characters with a mix of letters, numbers & symbols'}
                       {passwordStrength === 'Medium' && 'Good, but could be stronger with more variety'}
                       {passwordStrength === 'Strong' && 'Excellent! Your password is secure'}
@@ -409,10 +451,10 @@ const LoginSignup: React.FC = () => {
               </div>
               
               <div>
-                <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <label htmlFor="signup-confirm-password" className="block text-xs font-medium text-gray-700 mb-0.5">Confirm Password</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </div>
@@ -421,7 +463,7 @@ const LoginSignup: React.FC = () => {
                     id="signup-confirm-password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
+                    className="w-full px-3 py-1.5 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent text-sm"
                     placeholder="Confirm your password"
                     required
                   />
@@ -430,18 +472,18 @@ const LoginSignup: React.FC = () => {
               
               <button
                 type="submit"
-                className="btn btn-primary w-full py-2 text-base font-medium mt-4"
+                className="btn btn-primary w-full py-1.5 text-sm font-medium mt-2"
               >
                 Create Account
               </button>
             </form>
             
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
+            <div className="mt-3 text-center">
+              <p className="text-xs text-gray-600">
                 Already have an account?{' '}
                 <button
                   onClick={() => openModal(true)}
-                  className="text-[#4a6fa5] hover:text-[#3a5a8c] font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                  className="text-[#4a6fa5] hover:text-[#3a5a8c] font-medium bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition-colors"
                 >
                   Log In
                 </button>
