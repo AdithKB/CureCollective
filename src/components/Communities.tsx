@@ -46,24 +46,11 @@ const Communities: React.FC = () => {
     product: '',
     membership: ''
   });
+  const [pendingRequests, setPendingRequests] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (!token || !storedUser) {
-      navigate('/');
-      return;
-    }
-    
     fetchCommunities();
     fetchProducts();
-  }, [navigate]);
-
-  useEffect(() => {
-    if (productId) {
-      fetchCommunities();
-    }
   }, [productId]);
 
   // Handle initial product selection from state
@@ -86,9 +73,29 @@ const Communities: React.FC = () => {
     }
   }, [products, location.state, communities]);
 
+  // Load pending requests for private communities
+  useEffect(() => {
+    const loadPendingRequests = async () => {
+      const requests: {[key: string]: boolean} = {};
+      for (const community of communities) {
+        if (community.privacy === 'private') {
+          try {
+            const response = await communityService.getUserJoinRequest(community._id);
+            requests[community._id] = response.success && response.data && response.data.status === 'pending';
+          } catch (err) {
+            requests[community._id] = false;
+          }
+        }
+      }
+      setPendingRequests(requests);
+    };
+
+    loadPendingRequests();
+  }, [communities]);
+
   useEffect(() => {
     filterCommunities();
-  }, [searchQuery, filters, communities]);
+  }, [searchQuery, filters, communities, pendingRequests]);
 
   const filterCommunities = () => {
     let results = [...communities];
@@ -109,7 +116,7 @@ const Communities: React.FC = () => {
         if (filters.membership === 'joined') {
           return community.members?.some((member: User) => member._id === authUser?._id);
         } else if (filters.membership === 'requested') {
-          return community.joinRequests?.some((request) => request.user._id === authUser?._id);
+          return community.privacy === 'private' && pendingRequests[community._id] === true;
         }
         return true;
       });
@@ -140,13 +147,6 @@ const Communities: React.FC = () => {
     if (filters.condition) {
       results = results.filter(community => 
         community.healthConditions && community.healthConditions.includes(filters.condition)
-      );
-    }
-    
-    // Apply privacy filter
-    if (filters.privacy) {
-      results = results.filter(community => 
-        community.privacy === filters.privacy
       );
     }
     
@@ -257,15 +257,10 @@ const Communities: React.FC = () => {
     return <div className="min-h-screen bg-[#f5f7fa] flex items-center justify-center">Loading...</div>;
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f5f7fa] to-white text-[#333]">
+    <div className="min-h-screen bg-[#f5f7fa]">
       <Header user={authUser} onLogout={handleLogout} />
-      
-      <main className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12">
@@ -501,7 +496,7 @@ const Communities: React.FC = () => {
             </div>
           )}
         </div>
-      </main>
+      </div>
 
       <Footer />
     </div>

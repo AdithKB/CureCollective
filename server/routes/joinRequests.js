@@ -65,11 +65,14 @@ router.post('/communities/join-requests/:requestId/approve', auth, async (req, r
       });
     }
     
-    // Add user to community members
-    if (!community.members.includes(joinRequest.user)) {
-      community.members.push(joinRequest.user);
-      await community.save();
-    }
+    // Add user to community members using findByIdAndUpdate
+    const updatedCommunity = await Community.findByIdAndUpdate(
+      community._id,
+      {
+        $addToSet: { members: joinRequest.user }
+      },
+      { new: true, runValidators: true }
+    );
     
     // Update join request status using findOneAndUpdate with upsert
     const updatedRequest = await JoinRequest.findOneAndUpdate(

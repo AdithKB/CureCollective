@@ -4,7 +4,7 @@ const User = require('../models/User');
 const dummyProducts = require('../data/dummyProducts');
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mycare', {
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/mycare', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });

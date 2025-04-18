@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Product, Order } from '../types/index';
-import { authService, productService, communityService, orderService } from '../services/api';
+import { authService, productService, communityService, orderService, walletService } from '../services/api';
 import '../styles/Profile.css';
 import { MESSAGES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Footer from './Footer';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import toast from '../utils/toast';
 
 interface Community {
   _id: string;
@@ -22,6 +23,17 @@ interface Community {
 }
 
 type TabType = 'profile' | 'products' | 'communities' | 'orders' | 'order-requests' | 'wallet' | 'cart';
+
+interface Transaction {
+  _id: string;
+  type: 'credit' | 'debit';
+  amount: number;
+  description: string;
+  category: string;
+  reference: string;
+  status: string;
+  createdAt: string;
+}
 
 const Profile: React.FC = () => {
   const { user, logout } = useAuth();
@@ -62,7 +74,10 @@ const Profile: React.FC = () => {
     return savedBalance ? parseFloat(savedBalance) : 0;
   });
   const [addAmount, setAddAmount] = useState<string>('');
+  const [withdrawAmount, setWithdrawAmount] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAddingMoney, setIsAddingMoney] = useState(false);
+  const [isWithdrawingMoney, setIsWithdrawingMoney] = useState(false);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [cartItems, setCartItems] = useState<Array<{
     product: Product;
@@ -86,6 +101,18 @@ const Profile: React.FC = () => {
       return [];
     }
   });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [transactionsError, setTransactionsError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [cartTotal, setCartTotal] = useState(0);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
 
   // List of countries for the dropdown
   const countries = [
@@ -410,43 +437,95 @@ const Profile: React.FC = () => {
     }
   }, [activeTab]);
 
+  const fetchWalletBalance = async () => {
+    try {
+      const response = await walletService.getBalance();
+      if (response && response.balance !== undefined) {
+        setWalletBalance(response.balance);
+        localStorage.setItem('walletBalance', response.balance.toString());
+      } else {
+        console.error('Invalid response format from wallet balance API:', response);
+      }
+    } catch (err) {
+      console.error('Error fetching wallet balance:', err);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'wallet') {
-      // Load wallet balance from localStorage
-      const savedBalance = localStorage.getItem('walletBalance');
-      if (savedBalance) {
-        setWalletBalance(parseFloat(savedBalance));
-      }
+      // Fetch current wallet balance from server
+      fetchWalletBalance();
     }
   }, [activeTab]);
 
   const handleAddMoney = async () => {
-    try {
-      setIsProcessing(true);
-      setError(null);
-      
-      // Validate amount
-      const amount = parseFloat(addAmount);
-      if (isNaN(amount) || amount <= 0) {
-        setError('Please enter a valid amount');
-        return;
-      }
+    if (!addAmount || parseFloat(addAmount) <= 0) {
+      setWalletError('Please enter a valid amount');
+      return;
+    }
 
-      // TODO: Integrate with payment gateway
-      // For now, just updating the UI and localStorage
-      setTimeout(() => {
-        const newBalance = walletBalance + amount;
-        setWalletBalance(newBalance);
-        localStorage.setItem('walletBalance', newBalance.toString());
+    setIsAddingMoney(true);
+    setWalletError(null);
+
+    try {
+      const amount = parseFloat(addAmount);
+      const response = await walletService.addMoney(amount);
+      
+      if (response.success) {
+        setWalletBalance(response.data.newBalance);
+        localStorage.setItem('walletBalance', response.data.newBalance.toString());
         setAddAmount('');
-        setSuccess('Money added successfully!');
-        setIsProcessing(false);
-      }, 1000);
-    } catch (err) {
-      setError('Failed to process payment. Please try again.');
-      setIsProcessing(false);
+        toast.success('Money added successfully');
+      } else {
+        setWalletError(response.message || 'Failed to add money to wallet');
+      }
+    } catch (error) {
+      console.error('Error adding money:', error);
+      setWalletError('Failed to add money to wallet');
+    } finally {
+      setIsAddingMoney(false);
     }
   };
+
+  const handleWithdrawMoney = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+      setWalletError('Please enter a valid amount');
+      return;
+    }
+
+    if (parseFloat(withdrawAmount) > walletBalance) {
+      setWalletError('Insufficient balance');
+      return;
+    }
+
+    setIsWithdrawingMoney(true);
+    setWalletError(null);
+
+    try {
+      const amount = parseFloat(withdrawAmount);
+      const response = await walletService.withdrawMoney(amount);
+      
+      if (response.success) {
+        setWalletBalance(response.data.newBalance);
+        localStorage.setItem('walletBalance', response.data.newBalance.toString());
+        setWithdrawAmount('');
+        toast.success('Money withdrawn successfully');
+      } else {
+        setWalletError(response.message || 'Failed to withdraw money from wallet');
+      }
+    } catch (error) {
+      console.error('Error withdrawing money:', error);
+      setWalletError('Failed to withdraw money from wallet');
+    } finally {
+      setIsWithdrawingMoney(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      fetchWalletBalance();
+    }
+  }, [activeTab]);
 
   const handleScroll = (direction: 'left' | 'right') => {
     if (tabsContainerRef.current) {
@@ -579,6 +658,33 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.')) {
+      return;
+    }
+
+    try {
+      setIsDeletingAccount(true);
+      setError('');
+      const response = await authService.deleteAccount();
+      
+      if (response.success) {
+        setSuccess('Account deleted successfully');
+        // Clear all local storage
+        localStorage.clear();
+        // Logout and redirect to home
+        logout();
+        navigate('/');
+      } else {
+        setError(response.error || 'Failed to delete account');
+      }
+    } catch (err) {
+      setError('An error occurred while deleting your account');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -591,777 +697,852 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLogout={handleLogout} />
-      <main className="container mx-auto px-4 py-8">
-        <div className="profile-container">
-          <div className="profile-card">
-            <div className="header-with-back">
-            </div>
-
-            {error && <div className="error-message">{error}</div>}
-            {success && <div className="success-message">{success}</div>}
-
-            <div className="profile-content">
-              {/* Profile Header */}
-              <div className="profile-header">
-                <div className="profile-avatar">
-                  {user?.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="profile-info">
-                  <h3 className="text-xl font-bold">{user?.name}</h3>
-                  <p className="text-gray-600">{user?.email}</p>
-                </div>
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Header user={user} onLogout={handleLogout} />
+        <main className="container mx-auto px-4 py-8">
+          <div className="profile-container">
+            <div className="profile-card">
+              <div className="header-with-back">
               </div>
 
-              {/* Tabs Navigation */}
-              <div className="tabs-wrapper scrollable" ref={tabsContainerRef}>
-                <div className="scroll-indicator left" onClick={() => handleScroll('left')}>
-                  <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
-                </div>
-                <div className="scroll-indicator right" onClick={() => handleScroll('right')}>
-                  <ChevronRightIcon className="h-5 w-5 text-gray-600" />
-                </div>
-                <div className="tabs-container">
-                  <div className="tabs">
-                    <button 
-                      className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('profile')}
-                    >
-                      Profile
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'products' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('products')}
-                    >
-                      Products
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'communities' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('communities')}
-                    >
-                      Communities
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('orders')}
-                    >
-                      My Orders
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'order-requests' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('order-requests')}
-                    >
-                      Order Requests
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'wallet' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('wallet')}
-                    >
-                      Wallet
-                    </button>
-                    <button 
-                      className={`tab ${activeTab === 'cart' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('cart')}
-                    >
-                      Cart
-                    </button>
+              {error && <div className="error-message">{error}</div>}
+              {success && <div className="success-message">{success}</div>}
+
+              <div className="profile-content">
+                {/* Profile Header */}
+                <div className="profile-header">
+                  <div className="profile-avatar">
+                    {user?.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="profile-info">
+                    <h3 className="text-xl font-bold">{user?.name}</h3>
+                    <p className="text-gray-600">{user?.email}</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Tab Content */}
-              <div className="tab-content">
-                {/* Profile Tab */}
-                {activeTab === 'profile' && (
-                  <div className="profile-tab">
-                    <form onSubmit={handleSubmit} className="profile-form">
-                      <div className="form-group">
-                        <label htmlFor="name">Name</label>
-                        <input
-                          type="text"
-                          id="name"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleChange}
-                          disabled={!isEditing}
-                          required
-                          className="form-input"
-                        />
-                      </div>
+                {/* Tabs Navigation */}
+                <div className="tabs-wrapper scrollable" ref={tabsContainerRef}>
+                  <div className="scroll-indicator left" onClick={() => handleScroll('left')}>
+                    <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div className="scroll-indicator right" onClick={() => handleScroll('right')}>
+                    <ChevronRightIcon className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div className="tabs-container">
+                    <div className="tabs">
+                      <button 
+                        className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('profile')}
+                      >
+                        Profile
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'products' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('products')}
+                      >
+                        Products
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'communities' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('communities')}
+                      >
+                        Communities
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('orders')}
+                      >
+                        My Orders
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'order-requests' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('order-requests')}
+                      >
+                        Order Requests
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'wallet' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('wallet')}
+                      >
+                        Wallet
+                      </button>
+                      <button 
+                        className={`tab ${activeTab === 'cart' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('cart')}
+                      >
+                        Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-                      <div className="form-group">
-                        <label htmlFor="email">Email</label>
-                        <input
-                          type="email"
-                          id="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          disabled={!isEditing}
-                          required
-                          className="form-input"
-                        />
-                      </div>
+                {/* Tab Content */}
+                <div className="tab-content">
+                  {/* Profile Tab */}
+                  {activeTab === 'profile' && (
+                    <div className="profile-tab">
+                      <form onSubmit={handleSubmit} className="profile-form">
+                        <div className="form-group">
+                          <label htmlFor="name">Name</label>
+                          <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            disabled={!isEditing}
+                            required
+                            className="form-input"
+                          />
+                        </div>
 
-                      <div className="form-group">
-                        <label htmlFor="phone">Phone Number</label>
-                        <input
-                          type="tel"
-                          id="phone"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          disabled={!isEditing}
-                          className="form-input"
-                          placeholder="Enter your phone number"
-                        />
-                      </div>
+                        <div className="form-group">
+                          <label htmlFor="email">Email</label>
+                          <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            disabled={!isEditing}
+                            required
+                            className="form-input"
+                          />
+                        </div>
 
-                      <div className="form-group">
-                        <label htmlFor="address">Address</label>
-                        <textarea
-                          id="address"
-                          name="address"
-                          value={formData.address}
-                          onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                          disabled={!isEditing}
-                          className="form-input"
-                          rows={3}
-                        />
-                      </div>
+                        <div className="form-group">
+                          <label htmlFor="phone">Phone Number</label>
+                          <input
+                            type="tel"
+                            id="phone"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
+                            disabled={!isEditing}
+                            className="form-input"
+                            placeholder="Enter your phone number"
+                          />
+                        </div>
 
-                      <div className="form-group">
-                        <label htmlFor="country">Country <span className="text-red-500">*</span></label>
-                        <select
-                          id="country"
-                          name="country"
-                          value={formData.country}
-                          onChange={handleChange}
-                          disabled={!isEditing}
-                          required
-                          className="form-input"
-                        >
-                          <option value="">Select a country</option>
-                          {countries.map((country) => (
-                            <option key={country} value={country}>
-                              {country}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        <div className="form-group">
+                          <label htmlFor="address">Address</label>
+                          <textarea
+                            id="address"
+                            name="address"
+                            value={formData.address}
+                            onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                            disabled={!isEditing}
+                            className="form-input"
+                            rows={3}
+                          />
+                        </div>
 
-                      <div className="form-group">
-                        <label htmlFor="pincode">Pincode <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          id="pincode"
-                          name="pincode"
-                          value={formData.pincode}
-                          onChange={handleChange}
-                          disabled={!isEditing}
-                          required
-                          className="form-input"
-                        />
-                      </div>
-
-                      {isEditing && (
-                        <>
-                          <div className="form-group">
-                            <label htmlFor="currentPassword">Current Password</label>
-                            <input
-                              type="password"
-                              id="currentPassword"
-                              name="currentPassword"
-                              value={formData.currentPassword}
-                              onChange={handleChange}
-                              placeholder="Enter current password to change"
-                              className="form-input"
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label htmlFor="newPassword">New Password</label>
-                            <input
-                              type="password"
-                              id="newPassword"
-                              name="newPassword"
-                              value={formData.newPassword}
-                              onChange={handleChange}
-                              placeholder="Enter new password"
-                              className="form-input"
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label htmlFor="confirmPassword">Confirm New Password</label>
-                            <input
-                              type="password"
-                              id="confirmPassword"
-                              name="confirmPassword"
-                              value={formData.confirmPassword}
-                              onChange={handleChange}
-                              placeholder="Confirm new password"
-                              className="form-input"
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      <div className="form-actions">
-                        {!isEditing ? (
-                          <button
-                            type="button"
-                            className="edit-button"
-                            onClick={() => setIsEditing(true)}
+                        <div className="form-group">
+                          <label htmlFor="country">Country <span className="text-red-500">*</span></label>
+                          <select
+                            id="country"
+                            name="country"
+                            value={formData.country}
+                            onChange={handleChange}
+                            disabled={!isEditing}
+                            required
+                            className="form-input"
                           >
-                            Edit Profile
-                          </button>
-                        ) : (
+                            <option value="">Select a country</option>
+                            {countries.map((country) => (
+                              <option key={country} value={country}>
+                                {country}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="pincode">Pincode <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            id="pincode"
+                            name="pincode"
+                            value={formData.pincode}
+                            onChange={handleChange}
+                            disabled={!isEditing}
+                            required
+                            className="form-input"
+                          />
+                        </div>
+
+                        {isEditing && (
                           <>
-                            <button
-                              type="button"
-                              className="cancel-button"
-                              onClick={() => {
-                                setIsEditing(false);
-                                setFormData(prev => ({
-                                  ...prev,
-                                  currentPassword: '',
-                                  newPassword: '',
-                                  confirmPassword: ''
-                                }));
-                              }}
-                            >
-                              Cancel
-                            </button>
-                            <button type="submit" className="save-button">
-                              Save Changes
-                            </button>
+                            <div className="form-group">
+                              <label htmlFor="currentPassword">Current Password</label>
+                              <input
+                                type="password"
+                                id="currentPassword"
+                                name="currentPassword"
+                                value={formData.currentPassword}
+                                onChange={handleChange}
+                                placeholder="Enter current password to change"
+                                className="form-input"
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label htmlFor="newPassword">New Password</label>
+                              <input
+                                type="password"
+                                id="newPassword"
+                                name="newPassword"
+                                value={formData.newPassword}
+                                onChange={handleChange}
+                                placeholder="Enter new password"
+                                className="form-input"
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label htmlFor="confirmPassword">Confirm New Password</label>
+                              <input
+                                type="password"
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                placeholder="Confirm new password"
+                                className="form-input"
+                              />
+                            </div>
                           </>
                         )}
-                      </div>
-                    </form>
-                  </div>
-                )}
 
-                {/* Products Tab */}
-                {activeTab === 'products' && (
-                  <div className="products-tab">
-                    <div className="section-header">
-                      <h3>My Products</h3>
-                      <button 
-                        className="add-product-button"
-                        onClick={() => navigate('/add-product')}
-                      >
-                        Add Product
-                      </button>
-                    </div>
-                    {productsLoading ? (
-                      <div className="loading">Loading products...</div>
-                    ) : products.length > 0 ? (
-                      <div className="products-list">
-                        {products.map(product => (
-                          <div 
-                            key={product._id} 
-                            className="product-card"
-                            onClick={() => {
-                              console.log('Navigating to products with ID:', product.productId);
-                              navigate('/products', { 
-                                state: { selectedProduct: product.productId || '' }
-                              });
-                            }}
-                          >
-                            <div className="product-info">
-                              <h4>{product.name}</h4>
-                              <p className="product-id">ID: <span className="font-mono">{product.productId}</span></p>
-                              <p>{product.description}</p>
-                              <div className="product-price">
-                                <span className="regular-price">₹{product.regularPrice}</span>
-                                <span className="bulk-price">₹{product.bulkPrice}</span>
-                                <span className="min-order">Min: {product.minOrderQuantity}</span>
-                              </div>
-                            </div>
-                            <button 
-                              className="delete-button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteProduct(product._id);
-                              }}
+                        <div className="form-actions">
+                          {!isEditing ? (
+                            <button
+                              type="button"
+                              className="edit-button"
+                              onClick={() => setIsEditing(true)}
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              Edit Profile
                             </button>
-                          </div>
-                        ))}
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="cancel-button"
+                                onClick={() => {
+                                  setIsEditing(false);
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    currentPassword: '',
+                                    newPassword: '',
+                                    confirmPassword: ''
+                                  }));
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              <button type="submit" className="save-button">
+                                Save Changes
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </form>
+
+                      {/* Delete Account Section */}
+                      <div className="delete-account-section">
+                        <h3 className="text-xl font-semibold text-red-600 mb-4">Delete Account</h3>
+                        <p className="text-gray-600 mb-4">
+                          Once you delete your account, there is no going back. Please be certain.
+                          All your data including profile information, orders, and community memberships will be permanently deleted.
+                        </p>
+                        <button
+                          type="button"
+                          className="delete-account-button"
+                          onClick={handleDeleteAccount}
+                          disabled={isDeletingAccount}
+                        >
+                          {isDeletingAccount ? 'Deleting Account...' : 'Delete Account'}
+                        </button>
                       </div>
-                    ) : (
-                      <div className="no-products">
-                        <p>You haven't added any products yet.</p>
+                    </div>
+                  )}
+
+                  {/* Products Tab */}
+                  {activeTab === 'products' && (
+                    <div className="products-tab">
+                      <div className="section-header">
+                        <h3>My Products</h3>
                         <button 
-                          className="add-first-product-button"
+                          className="add-product-button"
                           onClick={() => navigate('/add-product')}
                         >
-                          Add Your First Product
+                          Add Product
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Communities Tab */}
-                {activeTab === 'communities' && (
-                  <div className="communities-tab">
-                    <div className="section-header">
-                      <h3>My Communities</h3>
-                      <button 
-                        className="add-product-button"
-                        onClick={() => navigate('/create-community')}
-                      >
-                        Create Community
-                      </button>
+                      {productsLoading ? (
+                        <div className="loading">Loading products...</div>
+                      ) : products.length > 0 ? (
+                        <div className="products-list">
+                          {products.map(product => (
+                            <div 
+                              key={product._id} 
+                              className="product-card"
+                              onClick={() => {
+                                console.log('Navigating to products with ID:', product.productId);
+                                navigate('/products', { 
+                                  state: { selectedProduct: product.productId || '' }
+                                });
+                              }}
+                            >
+                              <div className="product-info">
+                                <h4>{product.name}</h4>
+                                <p className="product-id">ID: <span className="font-mono">{product.productId}</span></p>
+                                <p>{product.description}</p>
+                                <div className="product-price">
+                                  <span className="regular-price">₹{product.regularPrice}</span>
+                                  <span className="bulk-price">₹{product.bulkPrice}</span>
+                                  <span className="min-order">Min: {product.minOrderQuantity}</span>
+                                </div>
+                              </div>
+                              <button 
+                                className="delete-button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteProduct(product._id);
+                                }}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="no-products">
+                          <p>You haven't added any products yet.</p>
+                          <button 
+                            className="add-first-product-button"
+                            onClick={() => navigate('/add-product')}
+                          >
+                            Add Your First Product
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {communitiesLoading ? (
-                      <div className="loading">Loading communities...</div>
-                    ) : communities.length > 0 ? (
-                      <div className="communities-list">
-                        {communities.map(community => (
-                          <div key={community._id} className="community-card">
-                            <div className="community-header">
-                              <h4>{community.name}</h4>
-                              <div className="community-actions">
-                                <button 
-                                  onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}`)}
-                                  className="view-button"
-                                >
-                                  View
-                                </button>
-                              </div>
-                            </div>
-                            <p>{community.description}</p>
-                            <div className="community-details">
-                              <div className="community-tags">
-                                <h5>Health Conditions:</h5>
-                                <div className="tags">
-                                  {community.healthConditions && community.healthConditions.length > 0 ? (
-                                    community.healthConditions.map((condition, index) => (
-                                      <span key={index} className="tag">{condition}</span>
-                                    ))
-                                  ) : (
-                                    <span className="no-tags">No conditions specified</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="community-tags">
-                                <h5>Medicines:</h5>
-                                <div className="tags">
-                                  {community.relatedMedications && community.relatedMedications.length > 0 ? (
-                                    community.relatedMedications.map((medicine) => {
-                                      const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
-                                      const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
-                                      return (
-                                        <span key={medicineId} className="tag">
-                                          {medicineName}
-                                        </span>
-                                      );
-                                    })
-                                  ) : (
-                                    <span className="no-tags">
-                                      <i className="fas fa-pills"></i> No medications added yet
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="community-tags">
-                                <h5>Locations:</h5>
-                                <div className="tags">
-                                  {community.locations && community.locations.length > 0 ? (
-                                    community.locations.map((location, index) => (
-                                      <span key={index} className="tag">{location}</span>
-                                    ))
-                                  ) : (
-                                    <span className="no-tags">No locations specified</span>
-                                  )}
-                                </div>
-                              </div>
-                              <span className="privacy-badge">{community.privacy}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="no-products">
-                        <p>You haven't created any communities yet.</p>
+                  )}
+
+                  {/* Communities Tab */}
+                  {activeTab === 'communities' && (
+                    <div className="communities-tab">
+                      <div className="section-header">
+                        <h3>My Communities</h3>
                         <button 
-                          className="add-first-product-button"
+                          className="add-product-button"
                           onClick={() => navigate('/create-community')}
                         >
-                          Create Your First Community
+                          Create Community
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Orders Tab */}
-                {activeTab === 'orders' && (
-                  <div className="orders-tab">
-                    <h3 className="text-xl font-bold mb-4">My Orders</h3>
-                    {ordersLoading ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="mt-2 text-gray-600">Loading orders...</p>
-                      </div>
-                    ) : ordersError ? (
-                      <div className="text-red-500 p-4 bg-red-50 rounded-lg">{ordersError}</div>
-                    ) : orders.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <p className="text-lg">No orders found</p>
-                        <p className="mt-2">When you place an order, it will appear here.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {orders.map((order) => (
-                          <div key={order._id} className="order-card">
-                            <div className="order-header">
-                              <div>
-                                <h3 className="font-semibold text-lg">Order #{order.orderId}</h3>
-                                <p className="text-sm text-gray-500">
-                                  {new Date(order.createdAt).toLocaleDateString()}
-                                </p>
-                                {order.user ? (
-                                  <>
-                                    <p className="text-sm text-gray-600">
-                                      {order.user.name}
-                                    </p>
-                                    <div className="mt-2 space-y-1">
-                                      <p className="text-sm text-gray-600">
-                                        {order.user.email}
-                                      </p>
-                                      {order.user.phone && (
-                                        <p className="text-sm text-gray-600">
-                                          Phone: {order.user.phone}
-                                        </p>
-                                      )}
-                                      {order.user.address && (
-                                        <p className="text-sm text-gray-600">
-                                          Address: {order.user.address}
-                                        </p>
-                                      )}
-                                      {order.user.country && (
-                                        <p className="text-sm text-gray-600">
-                                          Country: {order.user.country}
-                                        </p>
-                                      )}
-                                      {order.user.pincode && (
-                                        <p className="text-sm text-gray-600">
-                                          Pincode: {order.user.pincode}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <p className="text-sm text-gray-600">Customer information not available</p>
-                                )}
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-lg">₹{order.total.toFixed(2)}</p>
-                                <p className={`text-sm font-medium ${
-                                  order.status === 'completed' ? 'text-green-500' : 
-                                  order.status === 'pending' ? 'text-yellow-500' : 
-                                  'text-red-500'
-                                }`}>
-                                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                                </p>
-                                {order.status === 'pending' && (
-                                  <button
-                                    onClick={() => setDeleteOrderId(order._id)}
-                                    className="mt-2 text-red-500 hover:text-red-700 flex items-center justify-end"
-                                    title="Delete Order"
+                      {communitiesLoading ? (
+                        <div className="loading">Loading communities...</div>
+                      ) : communities.length > 0 ? (
+                        <div className="communities-list">
+                          {communities.map(community => (
+                            <div key={community._id} className="community-card">
+                              <div className="community-header">
+                                <h4>{community.name}</h4>
+                                <div className="community-actions">
+                                  <button 
+                                    onClick={() => navigate(`/communities/${community.name.toLowerCase().replace(/\s+/g, '-')}`)}
+                                    className="view-button"
                                   >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
+                                    View
                                   </button>
-                                )}
+                                </div>
+                              </div>
+                              <p>{community.description}</p>
+                              <div className="community-details">
+                                <div className="community-tags">
+                                  <h5>Health Conditions:</h5>
+                                  <div className="tags">
+                                    {community.healthConditions && community.healthConditions.length > 0 ? (
+                                      community.healthConditions.map((condition, index) => (
+                                        <span key={index} className="tag">{condition}</span>
+                                      ))
+                                    ) : (
+                                      <span className="no-tags">No conditions specified</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="community-tags">
+                                  <h5>Medicines:</h5>
+                                  <div className="tags">
+                                    {community.relatedMedications && community.relatedMedications.length > 0 ? (
+                                      community.relatedMedications.map((medicine) => {
+                                        const medicineName = typeof medicine === 'string' ? medicine : medicine.name;
+                                        const medicineId = typeof medicine === 'string' ? medicine : medicine._id;
+                                        return (
+                                          <span key={medicineId} className="tag">
+                                            {medicineName}
+                                          </span>
+                                        );
+                                      })
+                                    ) : (
+                                      <span className="no-tags">
+                                        <i className="fas fa-pills"></i> No medications added yet
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="community-tags">
+                                  <h5>Locations:</h5>
+                                  <div className="tags">
+                                    {community.locations && community.locations.length > 0 ? (
+                                      community.locations.map((location, index) => (
+                                        <span key={index} className="tag">{location}</span>
+                                      ))
+                                    ) : (
+                                      <span className="no-tags">No locations specified</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="privacy-badge">{community.privacy}</span>
                               </div>
                             </div>
-                            
-                            <div className="order-items">
-                              <h4 className="font-medium mb-2">Items:</h4>
-                              <ul className="space-y-2">
-                                {order.items.map((item: { _id: string; product: Product; quantity: number; price: number }) => (
-                                  <li key={item._id} className="order-item">
-                                    <span>{item.product?.name || 'Product not available'} x {item.quantity}</span>
-                                    <span>₹{(item.price * item.quantity).toFixed(2)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="no-products">
+                          <p>You haven't created any communities yet.</p>
+                          <button 
+                            className="add-first-product-button"
+                            onClick={() => navigate('/create-community')}
+                          >
+                            Create Your First Community
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {/* Order Requests Tab */}
-                {activeTab === 'order-requests' && (
-                  <div className="orders-tab">
-                    <h3 className="text-xl font-bold mb-4">Order Requests</h3>
-                    {productOrdersLoading ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="mt-2 text-gray-600">Loading order requests...</p>
-                      </div>
-                    ) : productOrdersError ? (
-                      <div className="text-red-500 p-4 bg-red-50 rounded-lg">{productOrdersError}</div>
-                    ) : productOrders.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <p className="text-lg">No order requests found</p>
-                        <p className="mt-2">When users place orders on your products, they will appear here.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {productOrders.map((order) => (
-                          <div key={order._id} className="order-card">
-                            <div className="order-header">
-                              <div>
-                                <h3 className="font-semibold text-lg">Order #{order.orderId}</h3>
-                                <p className="text-sm text-gray-500">
-                                  {new Date(order.createdAt).toLocaleDateString()}
-                                </p>
-                                {order.user ? (
-                                  <>
-                                    <p className="text-sm text-gray-600">
-                                      {order.user.name}
-                                    </p>
-                                    <div className="mt-2 space-y-1">
+                  {/* Orders Tab */}
+                  {activeTab === 'orders' && (
+                    <div className="orders-tab">
+                      <h3 className="text-xl font-bold mb-4">My Orders</h3>
+                      {ordersLoading ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="mt-2 text-gray-600">Loading orders...</p>
+                        </div>
+                      ) : ordersError ? (
+                        <div className="text-red-500 p-4 bg-red-50 rounded-lg">{ordersError}</div>
+                      ) : orders.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <p className="text-lg">No orders found</p>
+                          <p className="mt-2">When you place an order, it will appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {orders.map((order) => (
+                            <div key={order._id} className="order-card">
+                              <div className="order-header">
+                                <div>
+                                  <h3 className="font-semibold text-lg">Order #{order.orderId}</h3>
+                                  <p className="text-sm text-gray-500">
+                                    {new Date(order.createdAt).toLocaleDateString()}
+                                  </p>
+                                  {order.user ? (
+                                    <>
                                       <p className="text-sm text-gray-600">
-                                        {order.user.email}
+                                        {order.user.name}
                                       </p>
-                                      {order.user.phone && (
+                                      <div className="mt-2 space-y-1">
                                         <p className="text-sm text-gray-600">
-                                          Phone: {order.user.phone}
+                                          {order.user.email}
                                         </p>
-                                      )}
-                                      {order.user.address && (
-                                        <p className="text-sm text-gray-600">
-                                          Address: {order.user.address}
-                                        </p>
-                                      )}
-                                      {order.user.country && (
-                                        <p className="text-sm text-gray-600">
-                                          Country: {order.user.country}
-                                        </p>
-                                      )}
-                                      {order.user.pincode && (
-                                        <p className="text-sm text-gray-600">
-                                          Pincode: {order.user.pincode}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <p className="text-sm text-gray-600">Customer information not available</p>
-                                )}
+                                        {order.user.phone && (
+                                          <p className="text-sm text-gray-600">
+                                            Phone: {order.user.phone}
+                                          </p>
+                                        )}
+                                        {order.user.address && (
+                                          <p className="text-sm text-gray-600">
+                                            Address: {order.user.address}
+                                          </p>
+                                        )}
+                                        {order.user.country && (
+                                          <p className="text-sm text-gray-600">
+                                            Country: {order.user.country}
+                                          </p>
+                                        )}
+                                        {order.user.pincode && (
+                                          <p className="text-sm text-gray-600">
+                                            Pincode: {order.user.pincode}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <p className="text-sm text-gray-600">Customer information not available</p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-lg">₹{order.total.toFixed(2)}</p>
+                                  <p className={`text-sm font-medium ${
+                                    order.status === 'completed' ? 'text-green-500' : 
+                                    order.status === 'pending' ? 'text-yellow-500' : 
+                                    'text-red-500'
+                                  }`}>
+                                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                  </p>
+                                  {order.status === 'pending' && (
+                                    <button
+                                      onClick={() => setDeleteOrderId(order._id)}
+                                      className="mt-2 text-red-500 hover:text-red-700 flex items-center justify-end"
+                                      title="Delete Order"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-lg">₹{order.items
-                                  .filter(item => products.some(product => product._id === item.product._id))
-                                  .reduce((sum, item) => sum + (item.price * item.quantity), 0)
-                                  .toFixed(2)}</p>
-                                <p className={`text-sm font-medium ${
-                                  order.status === 'completed' ? 'text-green-500' : 
-                                  order.status === 'pending' ? 'text-yellow-500' : 
-                                  'text-red-500'
-                                }`}>
-                                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="order-items">
-                              <h4 className="font-medium mb-2">Items:</h4>
-                              <ul className="space-y-2">
-                                {order.items
-                                  .filter(item => products.some(product => product._id === item.product._id))
-                                  .map((item: { _id: string; product: Product; quantity: number; price: number }) => (
+                              
+                              <div className="order-items">
+                                <h4 className="font-medium mb-2">Items:</h4>
+                                <ul className="space-y-2">
+                                  {order.items.map((item: { _id: string; product: Product; quantity: number; price: number }) => (
                                     <li key={item._id} className="order-item">
                                       <span>{item.product?.name || 'Product not available'} x {item.quantity}</span>
                                       <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                                     </li>
                                   ))}
-                              </ul>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Wallet Tab */}
-                {activeTab === 'wallet' && (
-                  <div className="wallet-tab">
-                    <div className="wallet-container">
-                      <div className="wallet-balance">
-                        <h3>Wallet Balance</h3>
-                        <div className="balance-amount">₹{walletBalance.toFixed(2)}</div>
-                      </div>
-                      
-                      <div className="add-money-section">
-                        <h4>Add Money to Wallet</h4>
-                        <div className="amount-input">
-                          <input
-                            type="number"
-                            value={addAmount}
-                            onChange={(e) => setAddAmount(e.target.value)}
-                            placeholder="Enter amount"
-                            className="form-input"
-                            min="1"
-                            disabled={isProcessing}
-                          />
-                          <button
-                            onClick={handleAddMoney}
-                            className="add-money-button"
-                            disabled={isProcessing || !addAmount}
-                          >
-                            {isProcessing ? 'Processing...' : 'Add Money'}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="wallet-info">
-                        <h4>How it works</h4>
-                        <ul>
-                          <li>Add money to your wallet for faster checkout</li>
-                          <li>Wallet balance can be used for all purchases</li>
-                          <li>Secure and convenient payment method</li>
-                          <li>Track your wallet transactions easily</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Cart Tab */}
-                {activeTab === 'cart' && (
-                  <div className="cart-tab">
-                    <div className="section-header">
-                      <h3>Shopping Cart</h3>
-                      {cartItems.length > 0 && (
-                        <button 
-                          className="checkout-button"
-                          onClick={handleCheckout}
-                        >
-                          Buy Now
-                        </button>
-                      )}
-                    </div>
-                    {cartItems.length === 0 ? (
-                      <div className="empty-cart">
-                        <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <p className="text-lg text-gray-500">Your cart is empty</p>
-                        <button 
-                          className="browse-products-button"
-                          onClick={() => navigate('/products')}
-                        >
-                          Browse Products
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="cart-items">
-                        {cartItems.filter(item => item && item.product).map(item => (
-                          <div key={item.product._id} className="cart-item">
-                            <div className="cart-item-info">
-                              <h4>{item.product.name}</h4>
-                              <p className="product-id">ID: <span className="font-mono">{item.product.productId}</span></p>
-                              <div className="price-quantity">
-                                <span className="price">₹{item.product.regularPrice}</span>
-                                <div className="quantity-controls">
-                                  <button 
-                                    onClick={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
-                                    className="quantity-button"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="quantity">{item.quantity}</span>
-                                  <button 
-                                    onClick={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
-                                    className="quantity-button"
-                                  >
-                                    +
-                                  </button>
-                                </div>
+                                </ul>
                               </div>
                             </div>
-                            <button 
-                              onClick={() => handleRemoveFromCart(item.product._id)}
-                              className="remove-button"
-                              title="Remove from cart"
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Order Requests Tab */}
+                  {activeTab === 'order-requests' && (
+                    <div className="orders-tab">
+                      <h3 className="text-xl font-bold mb-4">Order Requests</h3>
+                      {productOrdersLoading ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="mt-2 text-gray-600">Loading order requests...</p>
+                        </div>
+                      ) : productOrdersError ? (
+                        <div className="text-red-500 p-4 bg-red-50 rounded-lg">{productOrdersError}</div>
+                      ) : productOrders.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <p className="text-lg">No order requests found</p>
+                          <p className="mt-2">When users place orders on your products, they will appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {productOrders.map((order) => (
+                            <div key={order._id} className="order-card">
+                              <div className="order-header">
+                                <div>
+                                  <h3 className="font-semibold text-lg">Order #{order.orderId}</h3>
+                                  <p className="text-sm text-gray-500">
+                                    {new Date(order.createdAt).toLocaleDateString()}
+                                  </p>
+                                  {order.user ? (
+                                    <>
+                                      <p className="text-sm text-gray-600">
+                                        {order.user.name}
+                                      </p>
+                                      <div className="mt-2 space-y-1">
+                                        <p className="text-sm text-gray-600">
+                                          {order.user.email}
+                                        </p>
+                                        {order.user.phone && (
+                                          <p className="text-sm text-gray-600">
+                                            Phone: {order.user.phone}
+                                          </p>
+                                        )}
+                                        {order.user.address && (
+                                          <p className="text-sm text-gray-600">
+                                            Address: {order.user.address}
+                                          </p>
+                                        )}
+                                        {order.user.country && (
+                                          <p className="text-sm text-gray-600">
+                                            Country: {order.user.country}
+                                          </p>
+                                        )}
+                                        {order.user.pincode && (
+                                          <p className="text-sm text-gray-600">
+                                            Pincode: {order.user.pincode}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <p className="text-sm text-gray-600">Customer information not available</p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-lg">₹{order.items
+                                    .filter(item => products.some(product => product._id === item.product._id))
+                                    .reduce((sum, item) => sum + (item.price * item.quantity), 0)
+                                    .toFixed(2)}</p>
+                                  <p className={`text-sm font-medium ${
+                                    order.status === 'completed' ? 'text-green-500' : 
+                                    order.status === 'pending' ? 'text-yellow-500' : 
+                                    'text-red-500'
+                                  }`}>
+                                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="order-items">
+                                <h4 className="font-medium mb-2">Items:</h4>
+                                <ul className="space-y-2">
+                                  {order.items
+                                    .filter(item => products.some(product => product._id === item.product._id))
+                                    .map((item: { _id: string; product: Product; quantity: number; price: number }) => (
+                                      <li key={item._id} className="order-item">
+                                        <span>{item.product?.name || 'Product not available'} x {item.quantity}</span>
+                                        <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Wallet Tab */}
+                  {activeTab === 'wallet' && (
+                    <div className="wallet-tab">
+                      <div className="wallet-container">
+                        <div className="wallet-balance">
+                          <h3>Current Balance</h3>
+                          <div className="balance-amount">₹{walletBalance.toFixed(2)}</div>
+                        </div>
+
+                        <div className="add-money-section">
+                          <h4>Add Money to Wallet</h4>
+                          <div className="amount-input">
+                            <input
+                              type="number"
+                              value={addAmount}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setAddAmount(value);
+                              }}
+                              placeholder="Enter amount"
+                              min="0"
+                              step="0.01"
+                            />
+                            <button
+                              className="add-money-button"
+                              onClick={handleAddMoney}
+                              disabled={!addAmount || parseFloat(addAmount) <= 0 || isAddingMoney}
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              {isAddingMoney ? 'Adding...' : 'Add Money'}
                             </button>
                           </div>
-                        ))}
-                        <div className="cart-summary">
-                          <div className="summary-row">
-                            <span>Subtotal:</span>
-                            <span>₹{calculateCartTotal().toFixed(2)}</span>
-                          </div>
-                          <div className="summary-row">
-                            <span>Shipping:</span>
-                            <span>Free</span>
-                          </div>
-                          <div className="summary-row total">
-                            <span>Total:</span>
-                            <span>₹{calculateCartTotal().toFixed(2)}</span>
+                        </div>
+
+                        <div className="withdraw-money-section">
+                          <h4>Withdraw Money from Wallet</h4>
+                          <div className="amount-input">
+                            <input
+                              type="number"
+                              value={withdrawAmount}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setWithdrawAmount(value);
+                              }}
+                              placeholder="Enter amount"
+                              min="0"
+                              step="0.01"
+                              max={walletBalance}
+                            />
+                            <button
+                              className="withdraw-money-button"
+                              onClick={handleWithdrawMoney}
+                              disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > walletBalance || isWithdrawingMoney}
+                            >
+                              {isWithdrawingMoney ? 'Withdrawing...' : 'Withdraw Money'}
+                            </button>
                           </div>
                         </div>
+
+                        <div className="wallet-info">
+                          <h4>Wallet Information</h4>
+                          <ul>
+                            <li>Maximum wallet balance: ₹50,000</li>
+                            <li>Transactions are instant</li>
+                            <li>24/7 customer support available</li>
+                          </ul>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+
+                  {/* Cart Tab */}
+                  {activeTab === 'cart' && (
+                    <div className="cart-tab">
+                      <div className="section-header">
+                        <h3>Shopping Cart</h3>
+                        {cartItems.length > 0 && (
+                          <button 
+                            className="checkout-button"
+                            onClick={handleCheckout}
+                          >
+                            Buy Now
+                          </button>
+                        )}
+                      </div>
+                      {cartItems.length === 0 ? (
+                        <div className="empty-cart">
+                          <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          <p className="text-lg text-gray-500">Your cart is empty</p>
+                          <button 
+                            className="browse-products-button"
+                            onClick={() => navigate('/products')}
+                          >
+                            Browse Products
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="cart-items">
+                          {cartItems.filter(item => item && item.product).map(item => (
+                            <div key={item.product._id} className="cart-item">
+                              <div className="cart-item-info">
+                                <h4>{item.product.name}</h4>
+                                <p className="product-id">ID: <span className="font-mono">{item.product.productId}</span></p>
+                                <div className="price-quantity">
+                                  <span className="price">₹{item.product.regularPrice}</span>
+                                  <div className="quantity-controls">
+                                    <button 
+                                      onClick={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
+                                      className="quantity-button"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="quantity">{item.quantity}</span>
+                                    <button 
+                                      onClick={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
+                                      className="quantity-button"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => handleRemoveFromCart(item.product._id)}
+                                className="remove-button"
+                                title="Remove from cart"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                          <div className="cart-summary">
+                            <div className="summary-row">
+                              <span>Subtotal:</span>
+                              <span>₹{calculateCartTotal().toFixed(2)}</span>
+                            </div>
+                            <div className="summary-row">
+                              <span>Shipping:</span>
+                              <span>Free</span>
+                            </div>
+                            <div className="summary-row total">
+                              <span>Total:</span>
+                              <span>₹{calculateCartTotal().toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
 
-      {/* Delete Order Confirmation Modal */}
-      {deleteOrderId && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 className="modal-title">Delete Order</h3>
-            <p className="modal-text">
-              Are you sure you want to delete this order? This action cannot be undone.
-            </p>
-            <div className="modal-actions">
-              <button
-                onClick={() => setDeleteOrderId(null)}
-                className="modal-cancel-button"
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteOrder(deleteOrderId)}
-                className="modal-delete-button"
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting...' : 'Delete'}
-              </button>
+        {/* Delete Order Confirmation Modal */}
+        {deleteOrderId && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3 className="modal-title">Delete Order</h3>
+              <p className="modal-text">
+                Are you sure you want to delete this order? This action cannot be undone.
+              </p>
+              <div className="modal-actions">
+                <button
+                  onClick={() => setDeleteOrderId(null)}
+                  className="modal-cancel-button"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteOrder(deleteOrderId)}
+                  className="modal-delete-button"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <Footer />
+        <Footer />
+      </div>
+
+      <style>
+        {`
+          .delete-account-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border: 1px solid #fee2e2;
+            border-radius: 0.5rem;
+            background-color: #fff;
+          }
+
+          .delete-account-button {
+            background-color: #ef4444;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+          }
+
+          .delete-account-button:hover:not(:disabled) {
+            background-color: #dc2626;
+          }
+
+          .delete-account-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+        `}
+      </style>
     </div>
   );
 };

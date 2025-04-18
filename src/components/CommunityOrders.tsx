@@ -32,18 +32,23 @@ const CommunityOrders: React.FC = () => {
         if (communityResponse.success && communityResponse.data) {
           setCommunity(communityResponse.data);
 
-          // Check if user is the creator of the community
-          if (communityResponse.data.creator !== authUser?._id) {
-            setError('You do not have permission to view these orders');
-            return;
-          }
+          // Only proceed with order management if user is authenticated
+          if (authUser) {
+            // Check if user is the creator of the community
+            if (communityResponse.data.creator._id !== authUser._id) {
+              setError('You do not have permission to view these orders');
+              return;
+            }
 
-          // Fetch community orders
-          const ordersResponse = await orderService.getCommunityOrders(communityResponse.data._id);
-          if (ordersResponse.success) {
-            setOrders(ordersResponse.data || []);
+            // Fetch community orders
+            const ordersResponse = await orderService.getCommunityOrders(communityResponse.data._id);
+            if (ordersResponse.success) {
+              setOrders(ordersResponse.data || []);
+            } else {
+              setError(ordersResponse.error || MESSAGES.ERRORS.GENERIC_ERROR);
+            }
           } else {
-            setError(ordersResponse.error || MESSAGES.ERRORS.GENERIC_ERROR);
+            setError('Please log in to view community orders');
           }
         } else {
           setError('Community not found');

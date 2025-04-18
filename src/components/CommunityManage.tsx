@@ -43,51 +43,43 @@ const CommunityManage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        console.log('Fetching community data for slug:', slug);
         // Fetch community data
         const communityResponse = await communityService.getBySlug(slug!);
-        console.log('Community response:', communityResponse);
         
         if (communityResponse.success && communityResponse.data) {
           setCommunity(communityResponse.data);
 
-          // Check if user is the creator of the community
-          const creatorId = communityResponse.data.creator._id;
-          const userId = authUser?._id;
-          
-          console.log('Creator ID:', creatorId);
-          console.log('User ID:', userId);
-          console.log('Auth user:', authUser);
-          console.log('Community creator:', communityResponse.data.creator);
-          
-          if (!creatorId || !userId) {
-            console.log('Missing IDs - Creator ID:', creatorId, 'User ID:', userId);
-            setError('Unable to verify community ownership');
-            return;
-          }
-
-          // Ensure both IDs are strings before comparison
-          const creatorIdStr = String(creatorId).trim();
-          const userIdStr = String(userId).trim();
-          
-          console.log('Creator ID (string):', creatorIdStr);
-          console.log('User ID (string):', userIdStr);
-          console.log('Are IDs equal?', creatorIdStr === userIdStr);
-
-          if (creatorIdStr !== userIdStr) {
-            console.log('IDs do not match - Creator:', creatorIdStr, 'User:', userIdStr);
-            setError('You do not have permission to manage this community');
-            return;
-          }
-
-          // Fetch join requests for private communities
-          if (communityResponse.data.privacy === 'private') {
-            const requestsResponse = await communityService.getJoinRequests(communityResponse.data._id);
-            if (requestsResponse.success) {
-              setJoinRequests(requestsResponse.data || []);
-            } else {
-              setError(requestsResponse.error || MESSAGES.ERRORS.GENERIC_ERROR);
+          // Only proceed with management features if user is authenticated
+          if (authUser) {
+            // Check if user is the creator of the community
+            const creatorId = communityResponse.data.creator._id;
+            const userId = authUser._id;
+            
+            if (!creatorId || !userId) {
+              setError('Unable to verify community ownership');
+              return;
             }
+
+            // Ensure both IDs are strings before comparison
+            const creatorIdStr = String(creatorId).trim();
+            const userIdStr = String(userId).trim();
+
+            if (creatorIdStr !== userIdStr) {
+              setError('You do not have permission to manage this community');
+              return;
+            }
+
+            // Fetch join requests for private communities
+            if (communityResponse.data.privacy === 'private') {
+              const requestsResponse = await communityService.getJoinRequests(communityResponse.data._id);
+              if (requestsResponse.success) {
+                setJoinRequests(requestsResponse.data || []);
+              } else {
+                setError(requestsResponse.error || MESSAGES.ERRORS.GENERIC_ERROR);
+              }
+            }
+          } else {
+            setError('Please log in to manage this community');
           }
         } else {
           setError('Community not found');
@@ -100,10 +92,8 @@ const CommunityManage: React.FC = () => {
       }
     };
 
-    if (slug && authUser) {
-      fetchData();
-    }
-  }, [slug, authUser]);
+    fetchData();
+  }, [slug, authUser?._id]);
 
   const handleApproveRequest = async (requestId: string) => {
     try {

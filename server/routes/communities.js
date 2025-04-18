@@ -226,14 +226,19 @@ router.post('/:id/join', auth, async (req, res) => {
             });
         }
         
-        // For public communities, add user directly
-        community.members.push(req.user._id);
-        await community.save();
+        // For public communities, add user directly using findByIdAndUpdate
+        const updatedCommunity = await Community.findByIdAndUpdate(
+            req.params.id,
+            {
+                $addToSet: { members: req.user._id }
+            },
+            { new: true, runValidators: true }
+        );
         
         res.json({
             success: true,
             message: 'Successfully joined the community',
-            community
+            community: updatedCommunity
         });
     } catch (error) {
         console.error('Error joining community:', error);
@@ -273,16 +278,19 @@ router.post('/:id/leave', auth, async (req, res) => {
             });
         }
         
-        community.members = community.members.filter(
-            member => member.toString() !== req.user._id.toString()
+        // Remove user from community members using findByIdAndUpdate
+        const updatedCommunity = await Community.findByIdAndUpdate(
+            req.params.id,
+            {
+                $pull: { members: req.user._id }
+            },
+            { new: true, runValidators: true }
         );
-        
-        await community.save();
         
         res.json({
             success: true,
             message: 'Successfully left community',
-            community
+            community: updatedCommunity
         });
     } catch (error) {
         console.error('Error leaving community:', error);
@@ -559,23 +567,53 @@ router.delete('/:communityId/members/:memberId', auth, async (req, res) => {
       });
     }
     
-    // Remove member from the community
-    community.members = community.members.filter(
-      member => member.toString() !== req.params.memberId
+    // Remove member from the community using findByIdAndUpdate
+    const updatedCommunity = await Community.findByIdAndUpdate(
+      req.params.communityId,
+      {
+        $pull: { members: req.params.memberId }
+      },
+      { new: true, runValidators: true }
     );
-    
-    await community.save();
     
     res.json({
       success: true,
       message: 'Member removed successfully',
-      community
+      community: updatedCommunity
     });
   } catch (error) {
     console.error('Error removing member:', error);
     res.status(500).json({ 
       success: false,
       message: 'Server error removing member',
+      error: error.message
+    });
+  }
+});
+
+// Check membership status
+router.get('/:id/membership', auth, async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+    
+    const isMember = community.members.includes(req.user._id);
+    
+    res.json({
+      success: true,
+      isMember
+    });
+  } catch (error) {
+    console.error('Error checking membership:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error checking membership',
       error: error.message
     });
   }

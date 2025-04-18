@@ -2,7 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+dotenv.config();
 
 const app = express();
 
@@ -19,6 +22,7 @@ app.use('/api/bulk-orders', require('./routes/bulkOrders'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/communities', require('./routes/communities'));
 app.use('/api', require('./routes/joinRequests'));
+app.use('/api/wallet', require('./routes/wallet'));
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -58,10 +62,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
-const PORT = process.env.PORT || 5000;
-
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}
+// Start server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`API available at http://localhost:${PORT}`);
+});
 
 module.exports = app; 

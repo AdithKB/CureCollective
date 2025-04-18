@@ -6,6 +6,7 @@ import { User, AuthResponse } from '../types/index';
 import { authService } from '../services/api';
 import Header from './Header';
 import Footer from './Footer';
+import { toast } from 'react-hot-toast';
 
 interface ApiError {
   message: string;
@@ -32,6 +33,7 @@ const HomePage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [passwordStrength, setPasswordStrength] = useState('');
+  const [loginError, setLoginError] = useState<string>('');
 
   const countries = [
     'United States',
@@ -79,41 +81,25 @@ const HomePage: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-    
     if (!loginData.email || !loginData.password) {
-      setError('Please fill in all fields');
+      setLoginError('Please fill in all fields');
       return;
     }
 
     try {
-      const response = await authService.login({
-        email: loginData.email,
-        password: loginData.password
-      });
-      
-      if (response.success && response.user && response.token) {
-        setUser(response.user);
-        setSuccess('Login successful!');
+      const response = await authService.login(loginData);
+      if (response.success) {
         localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('token', response.token);
-        setTimeout(() => {
-          setShowLoginModal(false);
-          setSuccess('');
-        }, 2000);
+        setLoginError('');
+        setShowLoginModal(false);
+        toast.success('Login successful!');
+        window.location.reload();
       } else {
-        setError(response.error || 'Login failed');
-        setTimeout(() => {
-          setError('');
-        }, 3000);
+        setLoginError(response.error || 'Login failed');
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Invalid email or password';
-      setError(errorMessage);
-      setTimeout(() => {
-        setError('');
-      }, 3000);
+    } catch (error: any) {
+      setLoginError(error.error || 'An error occurred during login');
     }
   };
 
@@ -436,6 +422,15 @@ const HomePage: React.FC = () => {
                   />
                 </div>
               </div>
+              
+              {loginError && (
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded shadow-lg mb-4 flex items-center animate-fade-in">
+                  <svg className="h-5 w-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {loginError}
+                </div>
+              )}
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center">

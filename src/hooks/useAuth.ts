@@ -10,107 +10,71 @@ interface RegisterData {
   country: string;
 }
 
-interface ServerResponse {
+interface AuthResponse {
   success: boolean;
+  error?: string;
   token?: string;
   user?: User;
-  message?: string;
-  error?: string;
 }
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await authService.getProfile();
-        if (response.success && response.user) {
-          setUser(response.user);
-        } else {
-          // Only clear token if the profile fetch explicitly fails
-          if (response.error === 'Invalid token' || response.error === 'Token expired') {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-          }
-        }
-      } catch (err) {
-        console.error('Auth check error:', err);
-        // Only clear token on network errors or server errors
-        if (err instanceof Error && (
-          err.message.includes('Network Error') || 
-          err.message.includes('500') ||
-          err.message.includes('401')
-        )) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<AuthResponse> => {
     try {
-      setError(null);
-      const response = await authService.login({
-        email,
-        password
-      });
+      const response = await authService.login({ email, password });
       if (response.success && response.token && response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('token', response.token);
         setUser(response.user);
-        return true;
-      } else {
-        setError(response.error || 'Login failed');
-        return false;
       }
-    } catch (err) {
-      setError('An error occurred during login');
-      return false;
+      return response;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || MESSAGES.ERRORS.GENERIC_ERROR
+      };
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (data: RegisterData): Promise<AuthResponse> => {
     try {
-      setError(null);
-      const response = await authService.register(userData);
+      const response = await authService.register(data);
       if (response.success && response.token && response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('token', response.token);
         setUser(response.user);
-        return true;
       }
-      return false;
-    } catch (err) {
-      setError(MESSAGES.ERRORS.GENERIC_ERROR);
-      return false;
+      return response;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || MESSAGES.ERRORS.GENERIC_ERROR
+      };
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     setUser(null);
   };
 
   return {
     user,
     loading,
-    error,
     login,
     register,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user
   };
 }; 

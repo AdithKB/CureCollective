@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+// @ts-ignore
+import { Toaster } from 'react-hot-toast';
 import HomePage from './components/HomePage';
 import Products from './components/Products';
 import AddProduct from './components/AddProduct';
@@ -14,6 +16,7 @@ import CommunityManage from './components/CommunityManage';
 const App: React.FC = () => {
   return (
     <Router>
+      <Toaster position="top-right" />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/products" element={<Products />} />

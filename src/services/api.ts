@@ -46,29 +46,26 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Only redirect to login on specific auth errors, not on login failures or public endpoints
+    if (error.response?.status === 401 && 
+        !error.config.url.includes('/auth/login') &&
+        !(error.config.url.includes('/communities') && error.config.method === 'get')) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
-    const apiError: ApiError = {
-      message: error.response?.data?.message || 'An error occurred. Please try again.',
-      status: error.response?.status,
-      data: error.response?.data
-    };
-    return Promise.reject(apiError);
+    // Return the error response data directly
+    return Promise.reject(error.response?.data || error);
   }
 );
 
 export const authService = {
-  login: async (credentials: { email: string; password: string }): Promise<ServerResponse> => {
+  login: async (credentials: { email: string; password: string }) => {
     try {
-      const response = await api.post<ServerResponse>('/auth/login', credentials);
+      const response = await api.post('/auth/login', credentials);
       return response.data;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || 'Failed to login'
-      };
+    } catch (err: any) {
+      // The error response will already have the correct structure
+      return err;
     }
   },
 
@@ -77,9 +74,28 @@ export const authService = {
       const response = await api.post<ServerResponse>('/auth/register', userData);
       return response.data;
     } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      // If the error response has the expected format, return it directly
+      if (error.response?.data && typeof error.response.data === 'object') {
+        return {
+          success: false,
+          error: error.response.data.error || error.response.data.message || 'Registration failed'
+        };
+      }
+      
+      // If it's a string error message, use it directly
+      if (typeof error === 'string') {
+        return {
+          success: false,
+          error: error
+        };
+      }
+      
+      // For other error types, provide a generic message
       return {
         success: false,
-        error: error.response?.data?.error || 'Failed to register'
+        error: error.message || 'Failed to register. Please try again.'
       };
     }
   },
@@ -104,6 +120,23 @@ export const authService = {
       return {
         success: false,
         error: error.response?.data?.error || 'Failed to update profile'
+      };
+    }
+  },
+
+  deleteAccount: async (): Promise<ApiResponse> => {
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/auth/delete-account`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || MESSAGES.ERRORS.GENERIC_ERROR
       };
     }
   }
@@ -297,6 +330,20 @@ export const communityService = {
       };
     }
   },
+  checkMembership: async (communityId: string) => {
+    try {
+      const response = await api.get(`/communities/${communityId}/membership`);
+      return {
+        success: true,
+        isMember: response.data.isMember
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to check membership'
+      };
+    }
+  },
 };
 
 export const orderService = {
@@ -448,4 +495,62 @@ export const orderService = {
       };
     }
   },
+};
+
+// Add the handleError function
+const handleError = (error: any) => {
+  if (error.response) {
+    return {
+      success: false,
+      error: error.response.data.message || 'An error occurred',
+      data: null
+    };
+  }
+  return {
+    success: false,
+    error: 'Network error occurred',
+    data: null
+  };
+};
+
+// Add the wallet service
+export const walletService = {
+  getBalance: async () => {
+    try {
+      const response = await api.get('/wallet/balance');
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  addMoney: async (amount: number) => {
+    try {
+      const response = await api.post('/wallet/add', { amount });
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  withdrawMoney: async (amount: number) => {
+    try {
+      const response = await api.post('/wallet/withdraw', { amount });
+      return response.data;
+    } catch (error) {
+      console.error('Error in withdrawMoney:', error);
+      return handleError(error);
+    }
+  },
+
+  getTransactions: async (page: number = 1, limit: number = 10) => {
+    try {
+      const response = await api.get('/wallet/transactions', {
+        params: { page, limit }
+      });
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  }
 }; 
