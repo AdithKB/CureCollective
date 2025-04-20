@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true,
     lowercase: true,
-    sparse: true,
+    index: false,
     validate: {
       validator: function(v) {
         return !v || /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(v);
@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
     trim: true,
-    sparse: true,
+    index: false,
     validate: {
       validator: function(v) {
         return !v || /^\d+$/.test(v);
@@ -87,20 +87,32 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Drop existing indexes
-mongoose.connection.on('connected', async () => {
-  try {
-    await mongoose.connection.db.collection('users').dropIndexes();
-    console.log('Dropped existing indexes');
-  } catch (error) {
-    console.log('No indexes to drop or error dropping indexes:', error);
-  }
-});
-
-// Create new indexes with proper sparse settings
-userSchema.index({ email: 1 }, { unique: true, sparse: true });
-userSchema.index({ phone: 1 }, { unique: true, sparse: true });
-
+// Create indexes after model initialization
 const User = mongoose.model('User', userSchema);
+
+// Ensure indexes are created properly
+const ensureIndexes = async () => {
+  try {
+    // Drop existing indexes except _id
+    await User.collection.dropIndexes();
+    console.log('Dropped existing indexes');
+
+    // Create new indexes with proper settings
+    await User.collection.createIndex(
+      { email: 1 },
+      { unique: true, sparse: true, background: true }
+    );
+    await User.collection.createIndex(
+      { phone: 1 },
+      { unique: true, sparse: true, background: true }
+    );
+    console.log('Created new indexes');
+  } catch (error) {
+    console.error('Error managing indexes:', error);
+  }
+};
+
+// Run index management when connected
+mongoose.connection.on('connected', ensureIndexes);
 
 module.exports = User; 

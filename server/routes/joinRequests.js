@@ -5,7 +5,7 @@ const Community = require('../models/Community');
 const JoinRequest = require('../models/JoinRequest');
 
 // Get join requests for a community
-router.get('/communities/:communityId/join-requests', auth, async (req, res) => {
+router.get('/community/:communityId', auth, async (req, res) => {
   try {
     const community = await Community.findById(req.params.communityId);
     
@@ -43,7 +43,7 @@ router.get('/communities/:communityId/join-requests', auth, async (req, res) => 
 });
 
 // Approve a join request
-router.post('/communities/join-requests/:requestId/approve', auth, async (req, res) => {
+router.post('/:requestId/approve', auth, async (req, res) => {
   try {
     const joinRequest = await JoinRequest.findById(req.params.requestId)
       .populate('community');
@@ -109,7 +109,7 @@ router.post('/communities/join-requests/:requestId/approve', auth, async (req, r
 });
 
 // Reject a join request
-router.post('/communities/join-requests/:requestId/reject', auth, async (req, res) => {
+router.post('/:requestId/reject', auth, async (req, res) => {
   try {
     const joinRequest = await JoinRequest.findById(req.params.requestId)
       .populate('community');
